@@ -8,7 +8,6 @@ from repository_analysis.dependency_graph import DependencyGraphBuilder
 
 
 def fetch_repo_tree(github_url: str) -> list:
-    """Fetch the full file tree from GitHub API without cloning."""
     parts = github_url.rstrip("/").split("/")
     owner = parts[-2]
     repo = parts[-1]
@@ -27,7 +26,6 @@ def fetch_repo_tree(github_url: str) -> list:
 
 
 def fetch_file_contents(github_url: str, tree: list, dest_folder: str = "datasets/virtual_repo") -> str:
-    """Download actual file contents for .py files."""
     parts = github_url.rstrip("/").split("/")
     owner = parts[-2]
     repo = parts[-1]
@@ -70,7 +68,6 @@ def fetch_file_contents(github_url: str, tree: list, dest_folder: str = "dataset
 
 def save_traversal_results(changed_module: str, affected: list,
                            output_path: str = "storage/traversal_results.json"):
-    """Save traversal results to disk so Phase 3/4 can read them."""
     result = {
         "changed_module": changed_module,
         "affected_modules": affected,
@@ -142,10 +139,8 @@ def print_traversal_results(changed_module: str, affected: list):
 
 if __name__ == "__main__":
 
-    # ← Paste any public GitHub repo URL here
     GITHUB_URL = "https://github.com/psf/requests"
 
-    # ── PHASE 1 ──────────────────────────────────────────
     print("\n" + "=" * 50)
     print("  PHASE 1: Repository Parser")
     print("=" * 50 + "\n")
@@ -157,7 +152,6 @@ if __name__ == "__main__":
     result = parser.save()
     print_parser_results(result)
 
-    # ── PHASE 2 ──────────────────────────────────────────
     print("\n" + "=" * 50)
     print("  PHASE 2: Dependency Graph")
     print("=" * 50 + "\n")
@@ -169,23 +163,18 @@ if __name__ == "__main__":
     graph = graph_builder.save()
     print_graph_results(graph)
 
-    # ── TRAVERSAL ────────────────────────────────────────
     print("\n" + "=" * 50)
     print("  PHASE 2: Graph Traversal")
     print("=" * 50 + "\n")
 
-    # ← Change this to any module from the graph to test traversal
     CHANGED_MODULE = "src/requests/compat"
 
     affected = graph_builder.find_affected_modules(CHANGED_MODULE, graph)
 
-    # Print results once cleanly
     print_traversal_results(CHANGED_MODULE, affected)
 
-    # Save traversal results for Phase 3/4 to consume
     save_traversal_results(CHANGED_MODULE, affected)
 
-    # ── CLEANUP ──────────────────────────────────────────
     if os.path.exists("datasets/virtual_repo"):
         shutil.rmtree("datasets/virtual_repo")
         print("\nCleaned up datasets/virtual_repo")
