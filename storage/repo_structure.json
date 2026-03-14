@@ -1,32 +1,97 @@
 {
   "modules": [
     {
-      "name": "backend/config/asgi",
-      "path": "backend/config/asgi.py"
+      "name": "setup",
+      "path": "setup.py"
     },
     {
-      "name": "backend/config/settings",
-      "path": "backend/config/settings.py"
+      "name": "src/requests/__version__",
+      "path": "src/requests/__version__.py"
     },
     {
-      "name": "backend/config/urls",
-      "path": "backend/config/urls.py"
+      "name": "src/requests/_internal_utils",
+      "path": "src/requests/_internal_utils.py"
     },
     {
-      "name": "backend/config/wsgi",
-      "path": "backend/config/wsgi.py"
+      "name": "src/requests/adapters",
+      "path": "src/requests/adapters.py"
     },
     {
-      "name": "backend/manage",
-      "path": "backend/manage.py"
+      "name": "src/requests/api",
+      "path": "src/requests/api.py"
+    },
+    {
+      "name": "src/requests/auth",
+      "path": "src/requests/auth.py"
+    },
+    {
+      "name": "src/requests/certs",
+      "path": "src/requests/certs.py"
+    },
+    {
+      "name": "src/requests/compat",
+      "path": "src/requests/compat.py"
+    },
+    {
+      "name": "src/requests/cookies",
+      "path": "src/requests/cookies.py"
+    },
+    {
+      "name": "src/requests/exceptions",
+      "path": "src/requests/exceptions.py"
+    },
+    {
+      "name": "src/requests/help",
+      "path": "src/requests/help.py"
+    },
+    {
+      "name": "src/requests/hooks",
+      "path": "src/requests/hooks.py"
+    },
+    {
+      "name": "src/requests/models",
+      "path": "src/requests/models.py"
+    },
+    {
+      "name": "src/requests/packages",
+      "path": "src/requests/packages.py"
+    },
+    {
+      "name": "src/requests/sessions",
+      "path": "src/requests/sessions.py"
+    },
+    {
+      "name": "src/requests/status_codes",
+      "path": "src/requests/status_codes.py"
+    },
+    {
+      "name": "src/requests/structures",
+      "path": "src/requests/structures.py"
+    },
+    {
+      "name": "src/requests/utils",
+      "path": "src/requests/utils.py"
     }
   ],
   "tests": [],
   "file_map": {
-    "backend/manage": "backend/manage.py",
-    "backend/config/asgi": "backend/config/asgi.py",
-    "backend/config/settings": "backend/config/settings.py",
-    "backend/config/urls": "backend/config/urls.py",
-    "backend/config/wsgi": "backend/config/wsgi.py"
+    "setup": "setup.py",
+    "src/requests/adapters": "src/requests/adapters.py",
+    "src/requests/api": "src/requests/api.py",
+    "src/requests/auth": "src/requests/auth.py",
+    "src/requests/certs": "src/requests/certs.py",
+    "src/requests/compat": "src/requests/compat.py",
+    "src/requests/cookies": "src/requests/cookies.py",
+    "src/requests/exceptions": "src/requests/exceptions.py",
+    "src/requests/help": "src/requests/help.py",
+    "src/requests/hooks": "src/requests/hooks.py",
+    "src/requests/models": "src/requests/models.py",
+    "src/requests/packages": "src/requests/packages.py",
+    "src/requests/sessions": "src/requests/sessions.py",
+    "src/requests/status_codes": "src/requests/status_codes.py",
+    "src/requests/structures": "src/requests/structures.py",
+    "src/requests/utils": "src/requests/utils.py",
+    "src/requests/_internal_utils": "src/requests/_internal_utils.py",
+    "src/requests/__version__": "src/requests/__version__.py"
   }
 }

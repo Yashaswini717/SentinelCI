@@ -13,19 +13,15 @@ class RepositoryParser:
     def _should_skip(self, path: Path) -> bool:
         skip_dirs = {
             "venv", ".venv", "__pycache__", ".git",
-            ".tox", "node_modules", "dist", "build", ".eggs"
+            ".tox", "node_modules", "dist", "build", ".eggs",
+            "docs", "tests"
         }
         return any(part in skip_dirs for part in path.parts)
 
     def _is_init_file(self, filename: str) -> bool:
-        """Filter out __init__.py — not a real module."""
         return filename == "__init__.py"
 
     def _get_module_key(self, relative_path: str) -> str:
-        """
-        Use full relative path as key to avoid duplicates.
-        e.g. backend/config/settings.py → backend/config/settings
-        """
         return relative_path.replace("\\", "/").replace(".py", "")
 
     def parse(self) -> dict:
@@ -45,7 +41,6 @@ class RepositoryParser:
                 if self._should_skip(full_path):
                     continue
 
-                # Skip __init__.py files
                 if self._is_init_file(filename):
                     continue
 

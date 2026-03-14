@@ -1,7 +1,10 @@
 import json
 import os
 import requests
+import shutil
+import pathlib
 from repository_analysis.repository_parser import RepositoryParser
+from repository_analysis.dependency_graph import DependencyGraphBuilder
 
 
 def fetch_repo_tree(github_url: str) -> list:
@@ -23,38 +26,68 @@ def fetch_repo_tree(github_url: str) -> list:
     return tree
 
 
-def build_virtual_repo(tree: list, dest_folder: str = "datasets/virtual_repo") -> str:
-    """
-    Build a virtual folder structure from GitHub API tree
-    so RepositoryParser can walk it properly.
-    Only creates empty .py files — no actual code downloaded.
-    """
-    import pathlib
+def fetch_file_contents(github_url: str, tree: list, dest_folder: str = "datasets/virtual_repo") -> str:
+    """Download actual file contents for .py files."""
+    parts = github_url.rstrip("/").split("/")
+    owner = parts[-2]
+    repo = parts[-1]
 
-    # Clean old virtual repo
+    skip_dirs = {
+        "venv", ".venv", "__pycache__", ".git",
+        ".tox", "node_modules", "dist", "build", ".eggs",
+        "docs", "tests"
+    }
+
     if os.path.exists(dest_folder):
-        import shutil
         shutil.rmtree(dest_folder)
 
-    skip_dirs = {"venv", ".venv", "__pycache__", ".git", ".tox", "node_modules", "dist", "build"}
+    print("Downloading Python file contents for import analysis...")
 
     for item in tree:
         path = item.get("path", "")
+
         if not path.endswith(".py"):
             continue
-        parts = path.split("/")
-        if any(part in skip_dirs for part in parts):
+
+        path_parts = path.split("/")
+        if any(part in skip_dirs for part in path_parts):
             continue
+
+        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD/{path}"
+        response = requests.get(raw_url)
 
         full_path = pathlib.Path(dest_folder) / path
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        full_path.touch()  # Create empty file
 
-    print(f"Virtual repo built at {dest_folder}\n")
+        if response.status_code == 200:
+            full_path.write_text(response.text, encoding="utf-8")
+        else:
+            full_path.touch()
+
+    print(f"Files downloaded to {dest_folder}\n")
     return dest_folder
 
 
-def print_results(result: dict):
+def save_traversal_results(changed_module: str, affected: list,
+                           output_path: str = "storage/traversal_results.json"):
+    """Save traversal results to disk so Phase 3/4 can read them."""
+    result = {
+        "changed_module": changed_module,
+        "affected_modules": affected,
+        "total_affected": len(affected)
+    }
+
+    output = pathlib.Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output, "w") as f:
+        json.dump(result, f, indent=2)
+
+    print(f"Saved traversal results → {output_path}")
+    return result
+
+
+def print_parser_results(result: dict):
     print("=" * 50)
     print(f"  Modules found : {len(result['modules'])}")
     print(f"  Tests found   : {len(result['tests'])}")
@@ -75,20 +108,88 @@ def print_results(result: dict):
         print("  No test files found.")
 
 
+def print_graph_results(graph: dict):
+    print("\n" + "=" * 50)
+    print("  DEPENDENCY GRAPH")
+    print("=" * 50)
+
+    has_deps = False
+    for module, deps in graph.items():
+        if deps:
+            has_deps = True
+            print(f"\n  {module}")
+            for dep in deps:
+                print(f"    └→  {dep}")
+
+    if not has_deps:
+        print("\n  No cross-module dependencies detected.")
+
+
+def print_traversal_results(changed_module: str, affected: list):
+    print("\n" + "=" * 50)
+    print("  GRAPH TRAVERSAL")
+    print("=" * 50)
+    print(f"\n  Changed module  : {changed_module}")
+    print(f"  Affected modules: {len(affected)}")
+    print()
+
+    if affected:
+        for m in affected:
+            print(f"    → {m}")
+    else:
+        print("    No modules affected.")
+
+
 if __name__ == "__main__":
 
     # ← Paste any public GitHub repo URL here
-    GITHUB_URL = "https://github.com/Yashaswini717/research-analysis"
+    GITHUB_URL = "https://github.com/psf/requests"
 
-    # Step 1 — Fetch file tree from GitHub API
+    # ── PHASE 1 ──────────────────────────────────────────
+    print("\n" + "=" * 50)
+    print("  PHASE 1: Repository Parser")
+    print("=" * 50 + "\n")
+
     tree = fetch_repo_tree(GITHUB_URL)
+    repo_path = fetch_file_contents(GITHUB_URL, tree)
 
-    # Step 2 — Build virtual repo structure locally (empty .py files only)
-    repo_path = build_virtual_repo(tree)
-
-    # Step 3 — Run the fixed RepositoryParser on it
     parser = RepositoryParser(repo_path=repo_path)
     result = parser.save()
+    print_parser_results(result)
 
-    # Step 4 — Print results
-    print_results(result)
+    # ── PHASE 2 ──────────────────────────────────────────
+    print("\n" + "=" * 50)
+    print("  PHASE 2: Dependency Graph")
+    print("=" * 50 + "\n")
+
+    graph_builder = DependencyGraphBuilder(
+        repo_structure_path="storage/repo_structure.json",
+        virtual_repo_path=repo_path
+    )
+    graph = graph_builder.save()
+    print_graph_results(graph)
+
+    # ── TRAVERSAL ────────────────────────────────────────
+    print("\n" + "=" * 50)
+    print("  PHASE 2: Graph Traversal")
+    print("=" * 50 + "\n")
+
+    # ← Change this to any module from the graph to test traversal
+    CHANGED_MODULE = "src/requests/compat"
+
+    affected = graph_builder.find_affected_modules(CHANGED_MODULE, graph)
+
+    # Print results once cleanly
+    print_traversal_results(CHANGED_MODULE, affected)
+
+    # Save traversal results for Phase 3/4 to consume
+    save_traversal_results(CHANGED_MODULE, affected)
+
+    # ── CLEANUP ──────────────────────────────────────────
+    if os.path.exists("datasets/virtual_repo"):
+        shutil.rmtree("datasets/virtual_repo")
+        print("\nCleaned up datasets/virtual_repo")
+
+    print("\n" + "=" * 50)
+    print("  ALL PHASES COMPLETE")
+    print("=" * 50)
