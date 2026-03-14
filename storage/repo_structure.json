@@ -1,0 +1,32 @@
+{
+  "modules": [
+    {
+      "name": "backend/config/asgi",
+      "path": "backend/config/asgi.py"
+    },
+    {
+      "name": "backend/config/settings",
+      "path": "backend/config/settings.py"
+    },
+    {
+      "name": "backend/config/urls",
+      "path": "backend/config/urls.py"
+    },
+    {
+      "name": "backend/config/wsgi",
+      "path": "backend/config/wsgi.py"
+    },
+    {
+      "name": "backend/manage",
+      "path": "backend/manage.py"
+    }
+  ],
+  "tests": [],
+  "file_map": {
+    "backend/manage": "backend/manage.py",
+    "backend/config/asgi": "backend/config/asgi.py",
+    "backend/config/settings": "backend/config/settings.py",
+    "backend/config/urls": "backend/config/urls.py",
+    "backend/config/wsgi": "backend/config/wsgi.py"
+  }
+}
