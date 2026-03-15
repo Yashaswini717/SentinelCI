@@ -1,75 +1,193 @@
 {
-  "setup": [],
-  "src/requests/__version__": [],
-  "src/requests/_internal_utils": [
-    "src/requests/compat"
+  "anygen/agent-harness/cli_anything/anygen/__main__": [],
+  "anygen/agent-harness/cli_anything/anygen/anygen_cli": [],
+  "anygen/agent-harness/cli_anything/anygen/core/export": [],
+  "anygen/agent-harness/cli_anything/anygen/core/session": [],
+  "anygen/agent-harness/cli_anything/anygen/core/task": [],
+  "anygen/agent-harness/cli_anything/anygen/utils/anygen_backend": [
+    "shotcut/agent-harness/cli_anything/shotcut/utils/time"
   ],
-  "src/requests/adapters": [
-    "src/requests/auth",
-    "src/requests/compat",
-    "src/requests/cookies",
-    "src/requests/exceptions",
-    "src/requests/models",
-    "src/requests/structures",
-    "src/requests/utils"
+  "anygen/agent-harness/cli_anything/anygen/utils/repl_skin": [],
+  "anygen/agent-harness/setup": [],
+  "audacity/agent-harness/cli_anything/audacity/__main__": [],
+  "audacity/agent-harness/cli_anything/audacity/audacity_cli": [],
+  "audacity/agent-harness/cli_anything/audacity/core/clips": [],
+  "audacity/agent-harness/cli_anything/audacity/core/effects": [],
+  "audacity/agent-harness/cli_anything/audacity/core/export": [],
+  "audacity/agent-harness/cli_anything/audacity/core/labels": [],
+  "audacity/agent-harness/cli_anything/audacity/core/media": [],
+  "audacity/agent-harness/cli_anything/audacity/core/project": [],
+  "audacity/agent-harness/cli_anything/audacity/core/selection": [],
+  "audacity/agent-harness/cli_anything/audacity/core/session": [],
+  "audacity/agent-harness/cli_anything/audacity/core/tracks": [],
+  "audacity/agent-harness/cli_anything/audacity/utils/audio_utils": [
+    "obs-studio/agent-harness/cli_anything/obs_studio/core/audio"
   ],
-  "src/requests/api": [],
-  "src/requests/auth": [
-    "src/requests/_internal_utils",
-    "src/requests/compat",
-    "src/requests/cookies",
-    "src/requests/utils"
+  "audacity/agent-harness/cli_anything/audacity/utils/repl_skin": [],
+  "audacity/agent-harness/cli_anything/audacity/utils/sox_backend": [],
+  "audacity/agent-harness/setup": [],
+  "blender/agent-harness/cli_anything/blender/__main__": [],
+  "blender/agent-harness/cli_anything/blender/blender_cli": [],
+  "blender/agent-harness/cli_anything/blender/core/animation": [],
+  "blender/agent-harness/cli_anything/blender/core/lighting": [],
+  "blender/agent-harness/cli_anything/blender/core/materials": [],
+  "blender/agent-harness/cli_anything/blender/core/modifiers": [],
+  "blender/agent-harness/cli_anything/blender/core/objects": [],
+  "blender/agent-harness/cli_anything/blender/core/render": [],
+  "blender/agent-harness/cli_anything/blender/core/scene": [],
+  "blender/agent-harness/cli_anything/blender/core/session": [],
+  "blender/agent-harness/cli_anything/blender/utils/blender_backend": [],
+  "blender/agent-harness/cli_anything/blender/utils/bpy_gen": [],
+  "blender/agent-harness/cli_anything/blender/utils/repl_skin": [],
+  "blender/agent-harness/setup": [],
+  "cli-anything-plugin/repl_skin": [],
+  "drawio/agent-harness/cli_anything/drawio/core/connectors": [
+    "drawio/agent-harness/cli_anything/drawio/core/session",
+    "drawio/agent-harness/cli_anything/drawio/utils/drawio_xml"
   ],
-  "src/requests/certs": [],
-  "src/requests/compat": [],
-  "src/requests/cookies": [
-    "src/requests/_internal_utils",
-    "src/requests/compat"
+  "drawio/agent-harness/cli_anything/drawio/core/export": [
+    "drawio/agent-harness/cli_anything/drawio/core/session",
+    "drawio/agent-harness/cli_anything/drawio/utils/drawio_backend",
+    "drawio/agent-harness/cli_anything/drawio/utils/drawio_xml"
   ],
-  "src/requests/exceptions": [
-    "src/requests/compat"
+  "drawio/agent-harness/cli_anything/drawio/core/pages": [
+    "drawio/agent-harness/cli_anything/drawio/core/session",
+    "drawio/agent-harness/cli_anything/drawio/utils/drawio_xml"
   ],
-  "src/requests/help": [],
-  "src/requests/hooks": [],
-  "src/requests/models": [
-    "src/requests/_internal_utils",
-    "src/requests/auth",
-    "src/requests/compat",
-    "src/requests/cookies",
-    "src/requests/exceptions",
-    "src/requests/hooks",
-    "src/requests/status_codes",
-    "src/requests/structures",
-    "src/requests/utils"
+  "drawio/agent-harness/cli_anything/drawio/core/project": [
+    "drawio/agent-harness/cli_anything/drawio/core/session",
+    "drawio/agent-harness/cli_anything/drawio/utils/drawio_xml"
   ],
-  "src/requests/packages": [
-    "src/requests/compat"
+  "drawio/agent-harness/cli_anything/drawio/core/session": [
+    "drawio/agent-harness/cli_anything/drawio/utils/drawio_xml",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/time"
   ],
-  "src/requests/sessions": [
-    "src/requests/_internal_utils",
-    "src/requests/adapters",
-    "src/requests/auth",
-    "src/requests/compat",
-    "src/requests/cookies",
-    "src/requests/exceptions",
-    "src/requests/hooks",
-    "src/requests/models",
-    "src/requests/status_codes",
-    "src/requests/structures",
-    "src/requests/utils"
+  "drawio/agent-harness/cli_anything/drawio/core/shapes": [
+    "drawio/agent-harness/cli_anything/drawio/core/session",
+    "drawio/agent-harness/cli_anything/drawio/utils/drawio_xml"
   ],
-  "src/requests/status_codes": [
-    "src/requests/structures"
+  "drawio/agent-harness/cli_anything/drawio/drawio_cli": [],
+  "drawio/agent-harness/cli_anything/drawio/utils/drawio_backend": [],
+  "drawio/agent-harness/cli_anything/drawio/utils/drawio_xml": [
+    "shotcut/agent-harness/cli_anything/shotcut/utils/time"
   ],
-  "src/requests/structures": [
-    "src/requests/compat"
+  "drawio/agent-harness/cli_anything/drawio/utils/repl_skin": [],
+  "drawio/agent-harness/setup": [],
+  "gimp/agent-harness/cli_anything/gimp/__main__": [],
+  "gimp/agent-harness/cli_anything/gimp/core/canvas": [],
+  "gimp/agent-harness/cli_anything/gimp/core/export": [],
+  "gimp/agent-harness/cli_anything/gimp/core/filters": [],
+  "gimp/agent-harness/cli_anything/gimp/core/layers": [],
+  "gimp/agent-harness/cli_anything/gimp/core/media": [],
+  "gimp/agent-harness/cli_anything/gimp/core/project": [],
+  "gimp/agent-harness/cli_anything/gimp/core/session": [],
+  "gimp/agent-harness/cli_anything/gimp/gimp_cli": [],
+  "gimp/agent-harness/cli_anything/gimp/utils/gimp_backend": [],
+  "gimp/agent-harness/cli_anything/gimp/utils/repl_skin": [],
+  "gimp/agent-harness/setup": [],
+  "inkscape/agent-harness/cli_anything/inkscape/__main__": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/document": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/export": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/gradients": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/layers": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/paths": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/session": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/shapes": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/styles": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/text": [],
+  "inkscape/agent-harness/cli_anything/inkscape/core/transforms": [],
+  "inkscape/agent-harness/cli_anything/inkscape/inkscape_cli": [],
+  "inkscape/agent-harness/cli_anything/inkscape/utils/inkscape_backend": [],
+  "inkscape/agent-harness/cli_anything/inkscape/utils/repl_skin": [],
+  "inkscape/agent-harness/cli_anything/inkscape/utils/svg_utils": [],
+  "inkscape/agent-harness/setup": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/__main__": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/core/bin": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/core/export": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/core/filters": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/core/guides": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/core/project": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/core/session": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/core/timeline": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/core/transitions": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/kdenlive_cli": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/utils/melt_backend": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/utils/mlt_xml": [],
+  "kdenlive/agent-harness/cli_anything/kdenlive/utils/repl_skin": [],
+  "kdenlive/agent-harness/setup": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/__main__": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/core/calc": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/core/document": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/core/export": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/core/impress": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/core/session": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/core/styles": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/core/writer": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/libreoffice_cli": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/utils/lo_backend": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/utils/odf_utils": [],
+  "libreoffice/agent-harness/cli_anything/libreoffice/utils/repl_skin": [],
+  "libreoffice/agent-harness/setup": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/core/audio": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/core/filters": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/core/output": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/core/project": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/core/scenes": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/core/session": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/core/sources": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/core/transitions": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/obs_studio_cli": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/utils/obs_utils": [],
+  "obs-studio/agent-harness/cli_anything/obs_studio/utils/repl_skin": [],
+  "obs-studio/agent-harness/setup": [],
+  "shotcut/agent-harness/cli_anything/shotcut/core/compositing": [
+    "shotcut/agent-harness/cli_anything/shotcut/core/session",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml"
   ],
-  "src/requests/utils": [
-    "src/requests/__version__",
-    "src/requests/_internal_utils",
-    "src/requests/compat",
-    "src/requests/cookies",
-    "src/requests/exceptions",
-    "src/requests/structures"
-  ]
+  "shotcut/agent-harness/cli_anything/shotcut/core/export": [
+    "shotcut/agent-harness/cli_anything/shotcut/core/session",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml"
+  ],
+  "shotcut/agent-harness/cli_anything/shotcut/core/filters": [
+    "shotcut/agent-harness/cli_anything/shotcut/core/session",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml"
+  ],
+  "shotcut/agent-harness/cli_anything/shotcut/core/media": [
+    "shotcut/agent-harness/cli_anything/shotcut/core/session",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml"
+  ],
+  "shotcut/agent-harness/cli_anything/shotcut/core/project": [
+    "shotcut/agent-harness/cli_anything/shotcut/core/session",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml"
+  ],
+  "shotcut/agent-harness/cli_anything/shotcut/core/session": [
+    "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/time"
+  ],
+  "shotcut/agent-harness/cli_anything/shotcut/core/timeline": [
+    "shotcut/agent-harness/cli_anything/shotcut/core/session",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/time"
+  ],
+  "shotcut/agent-harness/cli_anything/shotcut/core/transitions": [
+    "shotcut/agent-harness/cli_anything/shotcut/core/session",
+    "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml"
+  ],
+  "shotcut/agent-harness/cli_anything/shotcut/shotcut_cli": [],
+  "shotcut/agent-harness/cli_anything/shotcut/utils/melt_backend": [],
+  "shotcut/agent-harness/cli_anything/shotcut/utils/mlt_xml": [],
+  "shotcut/agent-harness/cli_anything/shotcut/utils/repl_skin": [],
+  "shotcut/agent-harness/cli_anything/shotcut/utils/time": [],
+  "shotcut/agent-harness/setup": [],
+  "shotcut/agent-harness/workflow_demo": [],
+  "zoom/agent-harness/cli_anything/zoom/core/auth": [],
+  "zoom/agent-harness/cli_anything/zoom/core/meetings": [],
+  "zoom/agent-harness/cli_anything/zoom/core/participants": [],
+  "zoom/agent-harness/cli_anything/zoom/core/recordings": [],
+  "zoom/agent-harness/cli_anything/zoom/utils/repl_skin": [],
+  "zoom/agent-harness/cli_anything/zoom/utils/zoom_backend": [
+    "shotcut/agent-harness/cli_anything/shotcut/utils/time"
+  ],
+  "zoom/agent-harness/cli_anything/zoom/zoom_cli": [],
+  "zoom/agent-harness/setup": []
 }

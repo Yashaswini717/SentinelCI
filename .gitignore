@@ -1,17 +1,27 @@
 # Virtual environment
 venv/
 .venv/
+.env
+.env.*
 
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Downloaded repo data
 datasets/
 
+# Generated analysis output
+storage/*.json
+storage/*.dot
+
 # VS Code
 .vscode/
+.idea/
 
 # OS files
 .DS_Store
