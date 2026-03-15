@@ -7,6 +7,10 @@ from repository_analysis.repository_parser import RepositoryParser
 from repository_analysis.dependency_graph import DependencyGraphBuilder
 from pr_analysis.pr_analyzer import PRAnalyzer
 from agents.change_impact_agent import ChangeImpactAgent
+from semantic_analysis.semantic_impact_agent import SemanticImpactAgent
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def fetch_repo_tree(github_url: str) -> list:
@@ -108,7 +112,6 @@ def print_phase3_results(result: dict):
 
 def print_phase4_results(result: dict):
     summary = result.get("impact_summary", {})
-
     print(f"\n  Blast Radius    : {summary.get('blast_radius', 'unknown').upper()}")
     print(f"  Total Affected  : {summary.get('total_affected', 0)}")
     print(f"  Direct Impact   : {summary.get('direct_impact', 0)}")
@@ -145,6 +148,24 @@ def print_phase4_results(result: dict):
                 print(f"      → {s['symbol']} ({s['type']})")
 
 
+def print_phase5_results(result: dict):
+    matches = result.get("semantic_related_modules", [])
+    changed = result.get("changed_symbols", [])
+
+    print(f"\n  Changed Symbols ({len(changed)}):")
+    for s in changed:
+        print(f"    → {s}")
+
+    print(f"\n  Semantic Matches ({result.get('total_semantic_matches', 0)}):")
+    if matches:
+        for m in matches:
+            print(f"\n    [{m['score']}] {m['module']}")
+            print(f"    Reason  : {m['reason']}")
+            print(f"    Matched : {m['matched_symbol']} ({m['match_type']})")
+    else:
+        print("    No semantic matches above threshold.")
+
+
 if __name__ == "__main__":
 
     # ← Repo to analyze
@@ -155,57 +176,72 @@ if __name__ == "__main__":
     PR_REPO = "requests"
     PR_NUMBER = 6710
 
-    # ── PHASE 1 ──────────────────────────────────────────────────
-    print("\n" + "=" * 55)
-    print("  PHASE 1: Repository Parser")
-    print("=" * 55 + "\n")
+    try:
+        # ── PHASE 1 ──────────────────────────────────────────────
+        print("\n" + "=" * 55)
+        print("  PHASE 1: Repository Parser")
+        print("=" * 55 + "\n")
 
-    tree = fetch_repo_tree(GITHUB_URL)
-    repo_path = fetch_file_contents(GITHUB_URL, tree)
+        tree = fetch_repo_tree(GITHUB_URL)
+        repo_path = fetch_file_contents(GITHUB_URL, tree)
 
-    parser = RepositoryParser(repo_path=repo_path)
-    result = parser.save()
-    print_phase1_results(result)
+        parser = RepositoryParser(repo_path=repo_path)
+        result = parser.save()
+        print_phase1_results(result)
 
-    # ── PHASE 2 ──────────────────────────────────────────────────
-    print("\n" + "=" * 55)
-    print("  PHASE 2: Dependency Graph")
-    print("=" * 55 + "\n")
+        # ── PHASE 2 ──────────────────────────────────────────────
+        print("\n" + "=" * 55)
+        print("  PHASE 2: Dependency Graph")
+        print("=" * 55 + "\n")
 
-    graph_builder = DependencyGraphBuilder(
-        repo_structure_path="storage/repo_structure.json",
-        virtual_repo_path=repo_path
-    )
-    graph = graph_builder.save()
-    print_phase2_results(graph)
+        graph_builder = DependencyGraphBuilder(
+            repo_structure_path="storage/repo_structure.json",
+            virtual_repo_path=repo_path
+        )
+        graph = graph_builder.save()
+        print_phase2_results(graph)
 
-    # ── PHASE 3 ──────────────────────────────────────────────────
-    print("\n" + "=" * 55)
-    print("  PHASE 3: Pull Request Analyzer")
-    print("=" * 55 + "\n")
+        # ── PHASE 3 ──────────────────────────────────────────────
+        print("\n" + "=" * 55)
+        print("  PHASE 3: Pull Request Analyzer")
+        print("=" * 55 + "\n")
 
-    pr_analyzer = PRAnalyzer(
-        repo_owner=PR_OWNER,
-        repo_name=PR_REPO,
-        pr_number=PR_NUMBER
-    )
-    pr_result = pr_analyzer.save()
-    print_phase3_results(pr_result)
+        pr_analyzer = PRAnalyzer(
+            repo_owner=PR_OWNER,
+            repo_name=PR_REPO,
+            pr_number=PR_NUMBER
+        )
+        pr_result = pr_analyzer.save()
+        print_phase3_results(pr_result)
 
-    # ── PHASE 4 ──────────────────────────────────────────────────
-    print("\n" + "=" * 55)
-    print("  PHASE 4: Change Impact Analysis")
-    print("=" * 55 + "\n")
+        # ── PHASE 4 ──────────────────────────────────────────────
+        print("\n" + "=" * 55)
+        print("  PHASE 4: Change Impact Analysis")
+        print("=" * 55 + "\n")
 
-    impact_agent = ChangeImpactAgent()
-    impact_result = impact_agent.save()
-    print_phase4_results(impact_result)
+        impact_agent = ChangeImpactAgent()
+        impact_result = impact_agent.save()
+        print_phase4_results(impact_result)
 
-    # ── CLEANUP ──────────────────────────────────────────────────
-    if os.path.exists("datasets/virtual_repo"):
-        shutil.rmtree("datasets/virtual_repo")
-        print("\nCleaned up datasets/virtual_repo")
+        # ── PHASE 5 ──────────────────────────────────────────────
+        print("\n" + "=" * 55)
+        print("  PHASE 5: Semantic Impact Analysis")
+        print("=" * 55 + "\n")
 
-    print("\n" + "=" * 55)
-    print("  ALL PHASES COMPLETE")
-    print("=" * 55)
+        semantic_agent = SemanticImpactAgent(
+            virtual_repo_path=repo_path,
+            similarity_threshold=0.50,
+            top_k=10
+        )
+        semantic_result = semantic_agent.save(force_reindex=True)
+        print_phase5_results(semantic_result)
+
+    finally:
+        # Always runs even if there's an error
+        if os.path.exists("datasets/virtual_repo"):
+            shutil.rmtree("datasets/virtual_repo")
+            print("\nCleaned up datasets/virtual_repo")
+
+        print("\n" + "=" * 55)
+        print("  ALL PHASES COMPLETE")
+        print("=" * 55)
