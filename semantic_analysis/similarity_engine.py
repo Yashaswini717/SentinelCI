@@ -1,5 +1,4 @@
 import json
-import chromadb
 from pathlib import Path
 
 
@@ -14,11 +13,48 @@ class SimilarityEngine:
         Path(storage_path).mkdir(parents=True, exist_ok=True)
 
         # Persistent ChromaDB client
-        self.client = chromadb.PersistentClient(path=storage_path)
-        self.collection = self.client.get_or_create_collection(
-            name="code_embeddings",
-            metadata={"hnsw:space": "cosine"}  # cosine similarity
-        )
+        try:
+            import chromadb  # type: ignore
+
+            self.client = chromadb.PersistentClient(path=storage_path)
+            self.collection = self.client.get_or_create_collection(
+                name="code_embeddings",
+                metadata={"hnsw:space": "cosine"}  # cosine similarity
+            )
+        except ModuleNotFoundError as e:
+            raise RuntimeError(
+                "Phase 5 requires the optional dependency 'chromadb'.\n"
+                "Install it (in your venv) and rerun:\n"
+                "  pip install chromadb\n\n"
+                f"Original error: {type(e).__name__}: {e}"
+            )
+        except Exception as e:
+            raise RuntimeError(
+                "Failed to initialize ChromaDB persistent storage. "
+                "This is usually caused by a corrupted on-disk index or an incompatible chromadb build.\n\n"
+                "Fix options:\n"
+                "1) Delete the local index folder: storage/semantic_index\n"
+                "2) Upgrade or downgrade chromadb (create a fresh venv if needed)\n"
+                "3) Re-run main.py to rebuild the index\n\n"
+                f"Original error: {type(e).__name__}: {e}"
+            )
+
+        # Detect known broken-index/runtime mismatch cases early.
+        # Some chromadb/pyo3 failures only surface on first collection call.
+        try:
+            _ = self.collection.count()
+        except BaseException as e:
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
+            raise RuntimeError(
+                "ChromaDB initialized but failed on first collection access. "
+                "This usually indicates a corrupted semantic index or an incompatible rust binding runtime.\n\n"
+                "Fix options:\n"
+                "1) Delete storage/semantic_index\n"
+                "2) Reinstall chromadb in a clean venv\n"
+                "3) Re-run main.py to rebuild the semantic index\n\n"
+                f"Original error: {type(e).__name__}: {e}"
+            )
 
     def index_chunks(self, embedded_chunks: list[dict]):
         """
@@ -76,13 +112,13 @@ class SimilarityEngine:
         self,
         query_embedding: list[float],
         top_k: int = 10,
-        chunk_type: str = None
+        chunk_type: str | None = None
     ) -> list[dict]:
         """
         Find most similar chunks to a query embedding.
         Optionally filter by chunk type (module/function/class).
         """
-        where = {"type": chunk_type} if chunk_type else None
+        where = {"type": chunk_type} if chunk_type is not None else None
 
         try:
             results = self.collection.query(

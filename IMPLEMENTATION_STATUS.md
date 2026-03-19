@@ -1,39 +1,45 @@
 # SentinelCI Implementation Status
 
-This file documents what is currently implemented in the project so it can be used as a reference for future phases.
+This file tracks the phase-by-phase plan and what is implemented in this repository today.
 
-## Current Status
+## Roadmap (Planned Pipeline)
 
-Officially implemented phases:
+`Repository Parser -> Dependency Graph -> Pull Request Analyzer -> Change Impact Analysis -> Semantic Impact Analysis -> Test Selection Engine -> Test Generation Agent -> Risk Scoring System -> CI/CD Integration`
+
+## Current Implementation Snapshot
+
+Implemented (present in code and wired in `main.py`):
 
 - Phase 1 - Repository Parser
 - Phase 2 - Dependency Graph
 - Phase 3 - Pull Request Analyzer
+- Phase 4 - Change Impact Analysis (blast radius report)
+- Phase 5 - Semantic Impact Analysis (embeddings + similarity search)
+- Phase 6 - Test Selection Engine (basic implementation)
 
-Important note about Phase 4:
+Not implemented yet:
 
-- Phase 4 has not been officially started as a full project phase.
-- A basic graph traversal result generator exists because traversal logic was already present in the codebase and was restored to generate `storage/traversal_results.json` for reference.
-- Treat this as preliminary support code, not as a completed Phase 4 implementation.
+- Phase 7 - Test Generation Agent
+- Phase 8 - Risk Scoring System
+- Phase 9 - CI/CD Integration
 
-## Implemented Pipeline So Far
+Runtime folders and generation:
 
-Current implemented flow:
-
-`Repository Parser -> Dependency Graph -> Pull Request Analyzer`
-
-Reference-only support currently available:
-
-`Pull Request Analyzer -> basic graph traversal output`
+- `storage/` and `datasets/` are runtime-generated when you run `python main.py`
+- analysis artifacts are intentionally gitignored via `.gitignore`
+- semantic index artifacts under `storage/semantic_index/` are ignored and should remain local
 
 ## Phase 1 - Repository Parser
 
-Purpose:
+What it does:
 
-- Scan the downloaded repository
-- Identify Python modules and test files
-- Extract functions, classes, and methods
-- Build mapping data for later phases
+- downloads Python files into `datasets/virtual_repo` (from the configured GitHub repo)
+- scans the virtual repo for Python modules and test files
+- extracts module-level symbols:
+  - functions
+  - classes
+  - methods (as `Class.method`)
+- produces indices for later phases (function index, class index) and a test-to-module mapping
 
 Main implementation:
 
@@ -46,55 +52,24 @@ Generated outputs:
 - `storage/class_index.json`
 - `storage/test_mapping.json`
 
-Expected contents:
+Key output fields:
 
-- `modules`
-- `tests`
-- `file_map`
-- `test_file_map`
-- function index entries
-- class index entries
-- test-to-module mapping
-
-Example output shape:
-
-```json
-{
-  "modules": [
-    {
-      "name": "package/module",
-      "path": "package/module.py",
-      "functions": ["func_a"],
-      "classes": ["MyClass"],
-      "methods": ["MyClass.run"]
-    }
-  ],
-  "tests": [
-    {
-      "name": "tests/test_module",
-      "path": "tests/test_module.py",
-      "functions": [],
-      "classes": [],
-      "methods": [],
-      "imports": ["package.module"]
-    }
-  ],
-  "file_map": {
-    "package/module": "package/module.py"
-  },
-  "test_file_map": {
-    "tests/test_module": "tests/test_module.py"
-  }
-}
-```
+- `modules[]`: `{name, path, functions[], classes[], methods[]}`
+- `tests[]`: `{name, path, imports[]}` (imports are used for mapping)
+- `file_map`: module key -> relative .py path
+- `test_file_map`: test module key -> relative .py path
 
 ## Phase 2 - Dependency Graph
 
-Purpose:
+What it does:
 
-- Analyze imports between modules
-- Build dependency relationships
-- Compute graph metrics for later risk and impact analysis
+- builds a module dependency graph using AST-based import extraction
+- supports relative imports and attempts to resolve imports to known modules
+- computes dependency metrics for later scoring:
+  - `fan_in`
+  - `fan_out`
+  - `module_depth`
+- generates a DOT visualization for debugging
 
 Main implementation:
 
@@ -105,44 +80,27 @@ Generated outputs:
 - `storage/dependency_graph.json`
 - `storage/dependency_metrics.json`
 - `storage/dependency_graph.dot`
-- optional: `storage/dependency_graph.png`
+- optional: `storage/dependency_graph.png` (requires Graphviz)
 
-Expected contents:
+Key output fields:
 
-- module-to-module dependency graph
-- `fan_in`
-- `fan_out`
-- `module_depth`
-- DOT graph visualization
-
-Example output shape:
-
-```json
-{
-  "package/module_a": ["package/module_b"],
-  "package/module_b": []
-}
-```
-
-```json
-{
-  "package/module_a": {
-    "fan_in": 2,
-    "fan_out": 1,
-    "module_depth": 3
-  }
-}
-```
+- dependency graph: `module -> [dependencies...]`
+- metrics: `module -> {fan_in, fan_out, module_depth}`
 
 ## Phase 3 - Pull Request Analyzer
 
-Purpose:
+What it does:
 
-- Connect to the GitHub API
-- Fetch pull request file changes
-- Detect changed files and changed modules
-- Detect changed functions, classes, and modified symbols
-- Store basic change metrics
+- calls GitHub PR files API
+- collects changed file paths
+- maps changed files to internal module keys using `storage/repo_structure.json`
+- parses patch hunks to detect:
+  - changed functions (Python `def` / `async def` definitions when present in patch)
+  - changed classes (Python `class` definitions when present in patch)
+  - modified symbols (best-effort based on hunk context and edits)
+- records change metrics:
+  - files changed
+  - lines added/deleted
 
 Main implementation:
 
@@ -154,203 +112,172 @@ Generated outputs:
 
 - `storage/pr_analysis.json`
 
-Expected contents:
+Key output fields:
 
-- `changed_files`
-- `changed_modules`
-- `changed_functions`
-- `changed_classes`
-- `modified_symbols`
-- `change_metrics`
+- `changed_files[]`
+- `changed_modules[]`
+- `changed_functions[]`
+- `changed_classes[]`
+- `modified_symbols[]`
+- `change_metrics`: `{files_changed, lines_added, lines_deleted, patch_lines_added, patch_lines_deleted}`
 
-Example output shape:
+## Phase 4 - Change Impact Analysis (Blast Radius)
 
-```json
-{
-  "changed_files": ["package/module_a.py"],
-  "changed_modules": ["package/module_a"],
-  "changed_functions": ["process_data"],
-  "changed_classes": ["Processor"],
-  "modified_symbols": ["process_data", "Processor"],
-  "change_metrics": {
-    "files_changed": 1,
-    "lines_added": 10,
-    "lines_deleted": 6,
-    "patch_lines_added": 10,
-    "patch_lines_deleted": 6
-  }
-}
-```
+What it does (current implementation):
 
-## Preliminary Traversal Support
-
-This is available in code, but should not yet be treated as an officially started or completed Phase 4.
-
-What exists:
-
-- reverse graph traversal to find affected modules
-- output written to `storage/traversal_results.json`
-
-Implementation:
-
-- `repository_analysis/dependency_graph.py`
-
-Reference output shape:
-
-```json
-{
-  "changed_modules": ["package/module_a"],
-  "affected_modules": ["package/service_x"],
-  "total_affected": 1,
-  "traversal_by_module": {
-    "package/module_a": ["package/service_x"]
-  }
-}
-```
-## Phase 4 - Change Impact Analysis
-
-Purpose:
-- Separate direct from indirect impact
-- Include dependency paths explaining why a module is impacted
-- Include impact depth for each affected module
-- Compute weighted blast radius
-- Connect impacted modules to impacted tests
-- Confidence scoring for each impacted result
-- Classify impact by change type (signature vs body change)
-- Public API vs private symbol detection
+- loads:
+  - dependency graph + metrics (Phase 2)
+  - PR change summary (Phase 3)
+  - repository structure + indexes + test mapping (Phase 1)
+- computes impacted modules using reverse graph traversal (who depends on changed modules)
+- assigns depth (direct = depth 1, indirect = depth > 1)
+- computes a confidence score (heuristic)
+- classifies change type (currently heuristic): `signature_change` vs `body_change`
+- flags whether public API likely changed (non-underscore symbol heuristic)
+- computes blast radius class: `none/low/medium/high/critical`
+- selects impacted tests using `storage/test_mapping.json`
 
 Main implementation:
+
 - `agents/change_impact_agent.py`
 
 Generated outputs:
+
 - `storage/impact_analysis.json`
 
-Expected contents:
-- `changed_modules`
-- `impact_summary` with blast_radius, direct_impact, indirect_impact
-- `affected_modules` with depth, confidence, reason, path
-- `impacted_tests`
-- `symbol_impact`
+Key output fields:
 
-Example output shape:
-```json
-{
-  "changed_modules": ["src/requests/adapters"],
-  "impact_summary": {
-    "total_affected": 2,
-    "direct_impact": 1,
-    "indirect_impact": 1,
-    "blast_radius": "medium",
-    "public_api_changed": true,
-    "change_type": "signature_change"
-  },
-  "affected_modules": [
-    {
-      "module": "src/requests/sessions",
-      "impact_type": "direct",
-      "depth": 1,
-      "confidence": 1.0,
-      "change_type": "signature_change",
-      "reason": "imports src/requests/adapters",
-      "path": ["src/requests/adapters", "src/requests/sessions"],
-      "changed_by": ["src/requests/adapters"],
-      "fan_in": 1,
-      "fan_out": 11
-    }
-  ],
-  "impacted_tests": [],
-  "symbol_impact": {}
-}
-```
-Analysis
+- `changed_modules[]`
+- `impact_summary`: `{total_affected, direct_impact, indirect_impact, blast_radius, public_api_changed, change_type}`
+- `affected_modules[]`: entries with `{module, impact_type, depth, confidence, reason, path, changed_by, fan_in, fan_out}`
+- `impacted_tests[]`
+- `symbol_impact` (present, but currently basic and not a full symbol dependency analysis)
 
-Purpose:
-- Generate embeddings for repository code artifacts
-- Store embeddings in ChromaDB vector database
-- Find semantically related code not captured by static imports alone
-- Identify hidden relationships between changed code and rest of codebase
-- Return ranked semantic impact results to merge with Phase 4 static results
+What is still left for a fully production-ready Phase 4 blast radius:
+
+- include explicit `changed_symbols` in the output (not only modules)
+- add numeric scoring (ex: `blast_radius_score`) in addition to the label
+- store per-module dependency paths as structured data (already present as `path`, but expand for multiple shortest paths)
+- strengthen change type detection using AST signature diff (not underscore heuristics)
+- strengthen symbol-level impact by analyzing actual symbol references (not name-only matching)
+- attach confidence explanations and evidence per impacted module
+- output coverage gaps: impacted modules with no mapped tests
+- support stable behavior for multi-change scenarios (ranking, deduping, primary cause selection)
+- add unit tests for traversal/path/confidence and edge cases (cycles, missing modules)
+
+## Phase 5 - Semantic Impact Analysis
+
+What it does (current implementation):
+
+- chunks code into embeddable units:
+  - modules
+  - functions
+  - classes
+- generates embeddings for chunks using OpenRouter embeddings API
+- stores embeddings in a persistent ChromaDB index
+- queries the index for semantic similarity to changed symbols from Phase 3
+- outputs ranked semantic matches
+- failure-tolerant orchestration in `main.py`: if semantic runtime deps are missing or broken, run continues and later phases still execute
 
 Main implementation:
+
 - `semantic_analysis/code_chunker.py`
 - `semantic_analysis/code_embedder.py`
 - `semantic_analysis/similarity_engine.py`
 - `semantic_analysis/semantic_impact_agent.py`
 
 Generated outputs:
+
 - `storage/semantic_impact.json`
 - `storage/semantic_index/` (ChromaDB persistent index)
 
-Embedding model:
-- `openai/text-embedding-3-small` via OpenRouter API
+Runtime requirements:
 
-Chunking strategy:
-- Module level: one chunk per .py file
-- Class level: one chunk per class definition
-- Function level: one chunk per function definition
-- Total chunks for requests library: 132
+- `OPENROUTER_API_KEY` must be set in the environment (or via `.env`)
+- `chromadb` must be installed for the index/search
 
-Expected output shape:
-```json
-{
-  "changed_symbols": [
-    "src/requests/adapters::get_connection_with_tls_context",
-    "src/requests/adapters::__module__"
-  ],
-  "semantic_related_modules": [
-    {
-      "module": "src/requests/utils",
-      "score": 0.6122,
-      "reason": "semantically related module functionality to src/requests/adapters",
-      "match_type": "module",
-      "matched_symbol": "src/requests/utils",
-      "path": "src/requests/utils.py",
-      "changed_symbol": "src/requests/adapters::__module__"
-    }
-  ],
-  "total_semantic_matches": 6
-}
-```
+Operational notes:
 
-Configuration:
-- `similarity_threshold`: 0.50 (tunable)
-- `top_k`: 10 results per symbol search
-- `force_reindex`: False by default (uses cached index)
+- known chromadb runtime/index issues are handled with guarded initialization and clear recovery guidance
+- recommended recovery when semantic index fails: delete `storage/semantic_index/` and rerun
 
-Notes:
-- ChromaDB index is persisted in storage/semantic_index/
-- Second run skips embedding generation and uses cached index
-- Function-level matches require larger codebases with duplicated patterns
-- Module-level matching works well for well-structured libraries
-- Threshold can be lowered for more matches or raised for stricter filtering
+Key output fields:
 
-TODO (future enhancement):
-- Add method-level chunking for finer granularity
-- Add cross-repo semantic search
-- Experiment with code-specific embedding models (CodeBERT, StarCoder)
-- Merge semantic results with Phase 4 static blast radius into unified score
-TODO (future enhancement):
-- Replace underscore-only check with full AST signature comparison
-- Fetch file before and after PR from GitHub API
-- Compare function parameters using ast.parse()
-- Detect: param added, param removed, return type changed
-Status:
+- `changed_symbols[]`
+- `semantic_related_modules[]`: entries with `{module, score, reason, match_type, matched_symbol, path, changed_symbol}`
+- `total_semantic_matches`
 
-- useful as a reference/helper
-- not counted as a fully implemented project phase yet
+What is still left for a fully production-ready Phase 5:
 
-## Summary For Future Reference
+- support method-level chunking
+- improve chunk extraction using AST ranges instead of simple indentation parsing
+- caching and incremental reindexing by file hash
+- stronger filtering to avoid trivial self-matches and near-duplicates
+- merge semantic impact with Phase 4 static impact into a unified impact report
 
+## Phases 6-9 (Planned)
 
-Completed project phases:
-- Phase 1 - Repository Parser
-- Phase 2 - Dependency Graph
-- Phase 3 - Pull Request Analyzer
-- Phase 4 - Change Impact Analysis
-- Phase 5 - Semantic Impact Analysis
+## Phase 6 - Test Selection Engine
 
-Not yet officially started/completed:
-- Phase 6 - Test Selection Engine
-- Phase 7 - Test Generation Agent
-- Phase 8 - Risk Scoring System
-- Phase 9 - CI/CD Integration
+What it does (current implementation):
+
+- loads static impact (`storage/impact_analysis.json`), semantic impact (`storage/semantic_impact.json` if available), test mapping, and dependency metrics
+- inverts test mapping into module -> tests lookup
+- computes risk-weighted priority for candidate tests
+- prioritizes:
+  - static impacted modules first
+  - semantic modules second
+  - fallback-all-tests when no candidates are found
+- emits coverage gaps for affected/changed modules without mapped tests
+
+Main implementation:
+
+- `agents/test_selection_agent.py`
+
+Generated outputs:
+
+- `storage/test_selection.json`
+
+Key output fields:
+
+- `tests_to_run[]`
+- `selection_summary`
+- `coverage_gaps[]`
+- `test_details`
+
+What is still left for a fully production-ready Phase 6:
+
+- deterministic test ordering with stable tie-breaking across environments
+- richer reasons with per-test evidence paths from Phase 4 and Phase 5
+- better semantic candidate weighting from similarity scores (currently fixed-weight contribution)
+- tighter integration with CI runtime constraints (sharding, timeout-aware selection)
+- validation suite for selection quality and regression checks
+
+## Phase 7 - Test Generation Agent
+
+- generate missing tests for coverage gaps and high-risk changes; validate generated tests
+
+## Phase 8 - Risk Scoring System
+
+- compute a risk score and explain main drivers; consume change metrics + blast radius + coverage
+
+## Phase 9 - CI/CD Integration
+
+- GitHub Actions integration; publish artifacts/reports; gate CI based on risk and coverage
+
+## Orchestration
+
+Entry point:
+
+- `main.py` runs Phases 1 through 6 sequentially and writes outputs to `storage/`
+- runtime config can be supplied via environment variables:
+  - `GITHUB_URL`
+  - `PR_OWNER`
+  - `PR_REPO`
+  - `PR_NUMBER`
+  - `SEMANTIC_SIMILARITY_THRESHOLD`
+  - `SEMANTIC_TOP_K`
+
+Cleanup behavior:
+
+- `datasets/virtual_repo` is removed at the end of `main.py`
