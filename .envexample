@@ -1,0 +1,17 @@
+# Copy this file to `.env` and fill values.
+
+# Optional: OpenRouter key for Phase 5 semantic embeddings
+OPENROUTER_API_KEY=
+
+# Optional runtime config (main.py currently uses hardcoded defaults)
+# GITHUB_URL=https://github.com/psf/requests
+# PR_OWNER=psf
+# PR_REPO=requests
+# PR_NUMBER=6710
+
+# Optional semantic tuning
+# SEMANTIC_SIMILARITY_THRESHOLD=0.50
+# SEMANTIC_TOP_K=10
+
+# Optional model override for generated tests
+# TEST_GEN_MODEL=mistralai/mistral-7b-instruct

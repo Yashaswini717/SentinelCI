@@ -1,0 +1,164 @@
+name: SentinelCI Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sentinelci:
+    runs-on: ubuntu-latest
+    name: AI-Powered CI Analysis
+
+    steps:
+      # ── Step 1: Checkout ─────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Step 2: Setup Python ──────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── Step 3: Install dependencies ─────────────────────────
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── Step 4: Run SentinelCI Pipeline (Phases 1-9) ─────────
+      - name: Run SentinelCI Pipeline
+        id: sentinelci
+        env:
+          GITHUB_URL: ${{ github.event.repository.html_url }}
+          PR_OWNER: ${{ github.repository_owner }}
+          PR_REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.number }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SEMANTIC_SIMILARITY_THRESHOLD: "0.50"
+          SEMANTIC_TOP_K: "10"
+        run: |
+          python main.py
+        # Hard fail if core phases 1-4 fail
+        # Phase 5 failure is handled gracefully inside main.py
+
+      # ── Step 5: Validate risk report exists (fail-safe) ──────
+      - name: Validate risk report exists
+        run: |
+          python -c "
+          import os, sys
+          if not os.path.exists('storage/risk_report.json'):
+              print('FAIL-SAFE: risk_report.json missing.')
+              print('Core pipeline failed — blocking merge.')
+              sys.exit(1)
+          if not os.path.exists('storage/ci_decision.json'):
+              print('FAIL-SAFE: ci_decision.json missing.')
+              print('CI decision unavailable — blocking merge.')
+              sys.exit(1)
+          print('Risk report and CI decision found.')
+          "
+
+      # ── Step 6: Risk-based test execution ────────────────────
+      - name: Execute selected tests
+        run: |
+          python -c "
+          import json, subprocess, sys
+
+          with open('storage/ci_decision.json') as f:
+              decision = json.load(f)
+
+          risk_level = decision.get('risk_level', 'high')
+          tests_to_run = decision.get('tests_to_run', [])
+          test_commands = decision.get('test_commands', [])
+
+          print(f'Risk level: {risk_level}')
+          print(f'Tests to run: {len(tests_to_run)}')
+
+          if not test_commands:
+              print('No test commands found — skipping test execution.')
+              sys.exit(0)
+
+          for cmd in test_commands:
+              print(f'Running: {cmd}')
+              result = subprocess.run(cmd, shell=True)
+              if result.returncode != 0:
+                  print(f'Tests failed: {cmd}')
+                  if risk_level in ('high', 'critical'):
+                      sys.exit(1)
+          "
+        continue-on-error: false
+
+      # ── Step 7: Upload all artifacts ─────────────────────────
+      - name: Upload SentinelCI artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sentinelci-reports-pr-${{ github.event.number }}
+          path: |
+            storage/risk_report.json
+            storage/impact_analysis.json
+            storage/test_selection.json
+            storage/test_generation.json
+            storage/ci_decision.json
+            storage/pr_report.md
+            storage/dependency_graph.json
+            storage/dependency_metrics.json
+            storage/pr_analysis.json
+            generated_tests/
+          retention-days: 30
+
+      # ── Step 8: Post PR comment with full report ──────────────
+      - name: Post PR analysis comment
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python -c "
+          import os
+          from ci.pr_reporter import PRReporter
+
+          reporter = PRReporter(
+              repo_owner='${{ github.repository_owner }}',
+              repo_name='${{ github.event.repository.name }}',
+              pr_number=${{ github.event.number }},
+              github_token=os.getenv('GITHUB_TOKEN')
+          )
+          reporter.post_comment()
+          "
+
+      # ── Step 9: Risk-based gate (final pass/fail) ─────────────
+      - name: Enforce risk gate
+        run: |
+          python -c "
+          import json, sys
+
+          with open('storage/ci_decision.json') as f:
+              decision = json.load(f)
+
+          status = decision.get('pipeline_status', 'blocked')
+          risk = decision.get('risk_level', 'unknown')
+          score = decision.get('risk_score', 100)
+          action = decision.get('ci_action', 'unknown')
+          message = decision.get('message', '')
+
+          print('=' * 50)
+          print('  SENTINELCI GATE RESULT')
+          print('=' * 50)
+          print(f'  Pipeline Status : {status.upper()}')
+          print(f'  Risk Level      : {risk.upper()}')
+          print(f'  Risk Score      : {score}/100')
+          print(f'  CI Action       : {action}')
+          print(f'  Message         : {message}')
+          print('=' * 50)
+
+          if status == 'blocked':
+              print('GATE FAILED: Critical risk — merge blocked.')
+              sys.exit(1)
+          elif status == 'warning':
+              print('GATE WARNING: High risk — proceed with caution.')
+              sys.exit(0)
+          else:
+              print('GATE PASSED: Risk within acceptable threshold.')
+              sys.exit(0)
+          "

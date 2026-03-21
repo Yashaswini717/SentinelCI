@@ -1,18 +1,49 @@
 # Virtual environment
 venv/
 .venv/
+.env
+.env.*
 
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
+.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Downloaded repo data
 datasets/
 
+# Generated analysis output
+storage/*.json
+storage/*.dot
+storage/semantic_index/
+storage/**/*.sqlite3
+*.sqlite3
+generated_tests/
+*.log
+*.tmp
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+
+# Local Python config
+.python-version
+
 # VS Code
 .vscode/
+.idea/
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Implementation docs
+IMPLEMENTATION_PHASES.md
+IMPLEMENTATION_STATUS.md
