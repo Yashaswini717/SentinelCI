@@ -16,10 +16,10 @@ Implemented (present in code and wired in `main.py`):
 - Phase 4 - Change Impact Analysis (blast radius report)
 - Phase 5 - Semantic Impact Analysis (embeddings + similarity search)
 - Phase 6 - Test Selection Engine (basic implementation)
+- Phase 7 - Test Generation Agent (coverage-gap driven, basic)
 
 Not implemented yet:
 
-- Phase 7 - Test Generation Agent
 - Phase 8 - Risk Scoring System
 - Phase 9 - CI/CD Integration
 
@@ -255,7 +255,41 @@ What is still left for a fully production-ready Phase 6:
 
 ## Phase 7 - Test Generation Agent
 
-- generate missing tests for coverage gaps and high-risk changes; validate generated tests
+What it does (current implementation):
+
+- reads `storage/test_selection.json`
+- takes `coverage_gaps[]` as generation targets
+- attempts to read module source from `datasets/virtual_repo`
+- generates tests using OpenRouter chat completion when API key is present
+- falls back to deterministic pytest templates when API is unavailable:
+  - targeted fallback for `requests.api` with monkeypatched behavioral tests
+  - structural fallback for other modules using parsed public function names
+- writes generated files to `generated_tests/`
+- emits run summary to `storage/test_generation.json`
+
+Main implementation:
+
+- `agents/test_generation_agent.py`
+
+Generated outputs:
+
+- `storage/test_generation.json`
+- `generated_tests/*.py`
+
+Key output fields:
+
+- `generated_tests[]` with `{target, test_type, reason, path}`
+- `generation_summary` with `{created, validated, failed}`
+
+What is still left for a fully production-ready Phase 7:
+
+- schema and syntax validation of generated tests before marking as validated
+- execution validation by running generated tests in isolation
+- duplicate test detection and de-duplication
+- richer prompts per symbol/function instead of module-only generation targets
+- integration with Phase 6 priorities and Phase 4 impact confidence
+- optional PR-comment/report formatting for generated tests
+- richer assertion synthesis from AST and type hints (currently template-based)
 
 ## Phase 8 - Risk Scoring System
 
@@ -269,7 +303,7 @@ What is still left for a fully production-ready Phase 6:
 
 Entry point:
 
-- `main.py` runs Phases 1 through 6 sequentially and writes outputs to `storage/`
+- `main.py` runs Phases 1 through 7 sequentially and writes outputs to `storage/`
 - runtime config can be supplied via environment variables:
   - `GITHUB_URL`
   - `PR_OWNER`

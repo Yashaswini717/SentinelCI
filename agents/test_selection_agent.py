@@ -198,3 +198,4 @@ def run_test_selection(output_path: str = "storage/test_selection.json"):
 
     print(f"Selected {len(tests_to_run)} tests")
     print(f"Coverage gaps: {len(coverage_gaps)} modules")
+    return output

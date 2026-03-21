@@ -9,6 +9,7 @@ from repository_analysis.dependency_graph import DependencyGraphBuilder
 from pr_analysis.pr_analyzer import PRAnalyzer
 from agents.change_impact_agent import ChangeImpactAgent
 from agents.test_selection_agent import run_test_selection
+from agents.test_generation_agent import run_test_generation
 
 try:
     from dotenv import load_dotenv  # type: ignore
@@ -229,6 +230,46 @@ def print_phase5_results(result: dict):
         print("    No semantic matches above threshold.")
 
 
+def print_phase6_results(result: dict):
+    tests = result.get("tests_to_run", [])
+    summary = result.get("selection_summary", {})
+    gaps = result.get("coverage_gaps", [])
+
+    print(f"\n  Tests To Run ({len(tests)}):")
+    for test in tests:
+        print(f"    - {test}")
+
+    print("\n  Selection Summary:")
+    print(f"    total_tests    : {summary.get('total_tests', 0)}")
+    print(f"    static_tests   : {summary.get('static_tests', 0)}")
+    print(f"    semantic_tests : {summary.get('semantic_tests', 0)}")
+    print(f"    fallback_tests : {summary.get('fallback_tests', 0)}")
+
+    print(f"\n  Coverage Gaps ({len(gaps)}):")
+    if gaps:
+        for module in gaps:
+            print(f"    - {module}")
+    else:
+        print("    None")
+
+
+def print_phase7_results(result: dict):
+    generated = result.get("generated_tests", [])
+    summary = result.get("generation_summary", {})
+
+    print(f"\n  Generated Tests ({len(generated)}):")
+    if generated:
+        for item in generated:
+            print(f"    - {item.get('path', 'unknown_path')} [{item.get('target', 'unknown_target')}]")
+    else:
+        print("    None")
+
+    print("\n  Generation Summary:")
+    print(f"    created   : {summary.get('created', 0)}")
+    print(f"    validated : {summary.get('validated', 0)}")
+    print(f"    failed    : {summary.get('failed', 0)}")
+
+
 if __name__ == "__main__":
     config = get_runtime_config()
     ensure_runtime_directories()
@@ -319,7 +360,15 @@ if __name__ == "__main__":
         print("  PHASE 6: Test Selection Engine")
         print("=" * 55 + "\n")
 
-        run_test_selection()
+        phase6_result = run_test_selection()
+        print_phase6_results(phase6_result)
+        
+        print("\n" + "=" * 55)
+        print("  PHASE 7: Test Generation Agent")
+        print("=" * 55 + "\n")
+
+        phase7_result = run_test_generation()
+        print_phase7_results(phase7_result)
 
     finally:
         if os.path.exists("datasets/virtual_repo"):

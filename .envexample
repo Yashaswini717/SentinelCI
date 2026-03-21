@@ -12,3 +12,6 @@ OPENROUTER_API_KEY=
 # Optional semantic tuning
 # SEMANTIC_SIMILARITY_THRESHOLD=0.50
 # SEMANTIC_TOP_K=10
+
+# Optional model override for generated tests
+# TEST_GEN_MODEL=mistralai/mistral-7b-instruct
