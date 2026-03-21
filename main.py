@@ -10,10 +10,10 @@ from pr_analysis.pr_analyzer import PRAnalyzer
 from agents.change_impact_agent import ChangeImpactAgent
 from agents.test_selection_agent import run_test_selection
 from agents.test_generation_agent import run_test_generation
+from agents.risk_scoring_agent import RiskScoringAgent
 
 try:
-    from dotenv import load_dotenv  # type: ignore
-
+    from dotenv import load_dotenv
     load_dotenv()
 except Exception:
     pass
@@ -65,7 +65,6 @@ def fetch_repo_tree(github_url: str) -> list:
     repo = parts[-1]
 
     api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/HEAD?recursive=1"
-
     print(f"Fetching file tree for {owner}/{repo} from GitHub API ...")
     response = requests.get(api_url)
 
@@ -95,10 +94,8 @@ def fetch_file_contents(github_url: str, tree: list, dest_folder: str = "dataset
 
     for item in tree:
         path = item.get("path", "")
-
         if not path.endswith(".py"):
             continue
-
         path_parts = path.split("/")
         if any(part in skip_dirs for part in path_parts):
             continue
@@ -123,11 +120,9 @@ def print_phase1_results(result: dict):
     print(f"  Modules found : {len(result['modules'])}")
     print(f"  Tests found   : {len(result['tests'])}")
     print("=" * 55)
-
     print("\nModules:")
     for m in result["modules"]:
         print(f"  {m['name']}  ->  {m['path']}")
-
     print("\nTests:")
     if result["tests"]:
         for t in result["tests"]:
@@ -140,7 +135,6 @@ def print_phase2_results(graph: dict):
     print("\n" + "=" * 55)
     print("  DEPENDENCY GRAPH")
     print("=" * 55)
-
     has_deps = False
     for module, deps in graph.items():
         if deps:
@@ -148,7 +142,6 @@ def print_phase2_results(graph: dict):
             print(f"\n  {module}")
             for dep in deps:
                 print(f"    ->  {dep}")
-
     if not has_deps:
         print("\n  No cross-module dependencies detected.")
 
@@ -157,23 +150,18 @@ def print_phase3_results(result: dict):
     print("\nChanged Files:")
     for f in result.get("changed_files", []):
         print(f"  {f}")
-
     print("\nChanged Modules:")
     for m in result.get("changed_modules", []):
         print(f"  {m}")
-
     print("\nChanged Functions:")
     for f in result.get("changed_functions", []):
         print(f"  {f}")
-
     print("\nChanged Classes:")
     for c in result.get("changed_classes", []):
         print(f"  {c}")
-
     print("\nModified Symbols:")
     for s in result.get("modified_symbols", []):
         print(f"  {s}")
-
     print("\nChange Metrics:")
     for k, v in result.get("change_metrics", {}).items():
         print(f"  {k}: {v}")
@@ -181,7 +169,6 @@ def print_phase3_results(result: dict):
 
 def print_phase4_results(result: dict):
     summary = result.get("impact_summary", {})
-
     print(f"\n  Blast Radius    : {summary.get('blast_radius', 'unknown').upper()}")
     print(f"  Total Affected  : {summary.get('total_affected', 0)}")
     print(f"  Direct Impact   : {summary.get('direct_impact', 0)}")
@@ -190,7 +177,6 @@ def print_phase4_results(result: dict):
     print(f"  Public API      : {'YES' if summary.get('public_api_changed') else 'NO'}")
 
     affected = result.get("affected_modules", [])
-
     if affected:
         print("\n  Affected Modules:")
         for m in affected:
@@ -203,7 +189,6 @@ def print_phase4_results(result: dict):
         print("\n  No affected modules found.")
 
     tests = result.get("impacted_tests", [])
-
     print(f"\n  Impacted Tests ({len(tests)}):")
     if tests:
         for t in tests:
@@ -270,6 +255,34 @@ def print_phase7_results(result: dict):
     print(f"    failed    : {summary.get('failed', 0)}")
 
 
+def print_phase8_results(result: dict):
+    print(f"\n  Risk Score  : {result.get('risk_score', 0)} / 100")
+    print(f"  Risk Level  : {result.get('risk_level', 'unknown').upper()}")
+
+    drivers = result.get("drivers", [])
+    if drivers:
+        print(f"\n  Risk Drivers ({len(drivers)}):")
+        for d in drivers:
+            print(f"    !  {d}")
+
+    components = result.get("components", {})
+    if components:
+        print("\n  Score Breakdown:")
+        for component, score in components.items():
+            bar = "█" * int(score)
+            print(f"    {component:<25} {score:>5}  {bar}")
+
+    rec = result.get("recommendation", {})
+    print(f"\n  Recommendation : {rec.get('action', 'unknown').upper()}")
+    print(f"  Message        : {rec.get('message', '')}")
+
+    suites = rec.get("required_suites", [])
+    if suites:
+        print(f"\n  Required Suites:")
+        for s in suites:
+            print(f"    -> {s}")
+
+
 if __name__ == "__main__":
     config = get_runtime_config()
     ensure_runtime_directories()
@@ -287,7 +300,7 @@ if __name__ == "__main__":
     print(f"  Semantic conf : threshold={semantic_threshold}, top_k={semantic_top_k}")
 
     try:
-        # Phase 1
+        # ── PHASE 1 ──────────────────────────────────────────────
         print("\n" + "=" * 55)
         print("  PHASE 1: Repository Parser")
         print("=" * 55 + "\n")
@@ -299,7 +312,7 @@ if __name__ == "__main__":
         result = parser.save()
         print_phase1_results(result)
 
-        # Phase 2
+        # ── PHASE 2 ──────────────────────────────────────────────
         print("\n" + "=" * 55)
         print("  PHASE 2: Dependency Graph")
         print("=" * 55 + "\n")
@@ -311,7 +324,7 @@ if __name__ == "__main__":
         graph = graph_builder.save()
         print_phase2_results(graph)
 
-        # Phase 3
+        # ── PHASE 3 ──────────────────────────────────────────────
         print("\n" + "=" * 55)
         print("  PHASE 3: Pull Request Analyzer")
         print("=" * 55 + "\n")
@@ -324,7 +337,7 @@ if __name__ == "__main__":
         pr_result = pr_analyzer.save()
         print_phase3_results(pr_result)
 
-        # Phase 4
+        # ── PHASE 4 ──────────────────────────────────────────────
         print("\n" + "=" * 55)
         print("  PHASE 4: Change Impact Analysis")
         print("=" * 55 + "\n")
@@ -333,7 +346,7 @@ if __name__ == "__main__":
         impact_result = impact_agent.save()
         print_phase4_results(impact_result)
 
-        # Phase 5
+        # ── PHASE 5 ──────────────────────────────────────────────
         print("\n" + "=" * 55)
         print("  PHASE 5: Semantic Impact Analysis")
         print("=" * 55 + "\n")
@@ -355,20 +368,30 @@ if __name__ == "__main__":
             print(f"Reason: {type(e).__name__}: {e}")
             print("To fix: delete storage/semantic_index and ensure chromadb and OPENROUTER_API_KEY are set correctly.")
 
-        # Phase 6 (FINAL STEP)
+        # ── PHASE 6 ──────────────────────────────────────────────
         print("\n" + "=" * 55)
         print("  PHASE 6: Test Selection Engine")
         print("=" * 55 + "\n")
 
         phase6_result = run_test_selection()
         print_phase6_results(phase6_result)
-        
+
+        # ── PHASE 7 ──────────────────────────────────────────────
         print("\n" + "=" * 55)
         print("  PHASE 7: Test Generation Agent")
         print("=" * 55 + "\n")
 
         phase7_result = run_test_generation()
         print_phase7_results(phase7_result)
+
+        # ── PHASE 8 ──────────────────────────────────────────────
+        print("\n" + "=" * 55)
+        print("  PHASE 8: Risk Scoring System")
+        print("=" * 55 + "\n")
+
+        risk_agent = RiskScoringAgent()
+        risk_result = risk_agent.save()
+        print_phase8_results(risk_result)
 
     finally:
         if os.path.exists("datasets/virtual_repo"):
@@ -378,3 +401,4 @@ if __name__ == "__main__":
         print("\n" + "=" * 55)
         print("  RUN COMPLETE")
         print("=" * 55)
+        
