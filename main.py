@@ -11,7 +11,8 @@ from agents.change_impact_agent import ChangeImpactAgent
 from agents.test_selection_agent import run_test_selection
 from agents.test_generation_agent import run_test_generation
 from agents.risk_scoring_agent import RiskScoringAgent
-
+from ci.ci_decision import CIDecision
+from ci.pr_reporter import PRReporter
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -282,6 +283,49 @@ def print_phase8_results(result: dict):
         for s in suites:
             print(f"    -> {s}")
 
+def print_phase9_results(decision: dict, report_path: str):
+    status_symbols = {
+        "ready": "✓",
+        "warning": "!",
+        "blocked": "✗"
+    }
+    status = decision.get("pipeline_status", "unknown")
+    symbol = status_symbols.get(status, "?")
+
+    print(f"\n  Pipeline Status : [{symbol}] {status.upper()}")
+    print(f"  CI Action       : {decision.get('ci_action', 'unknown').upper()}")
+    print(f"  Risk Score      : {decision.get('risk_score', 0)} / 100")
+    print(f"  Risk Level      : {decision.get('risk_level', 'unknown').upper()}")
+
+    print(f"\n  Message:")
+    print(f"    {decision.get('message', '')}")
+
+    commands = decision.get("test_commands", [])
+    if commands:
+        print(f"\n  Test Commands ({len(commands)}):")
+        for cmd in commands:
+            print(f"    $ {cmd}")
+
+    top_drivers = decision.get("top_drivers", [])
+    if top_drivers:
+        print(f"\n  Top Risk Drivers:")
+        for d in top_drivers:
+            print(f"    ! {d}")
+
+    generated = decision.get("generated_tests", [])
+    if generated:
+        print(f"\n  Generated Tests ({len(generated)}):")
+        for t in generated:
+            print(f"    -> {t}")
+
+    gaps = decision.get("coverage_gaps", [])
+    if gaps:
+        print(f"\n  Coverage Gaps ({len(gaps)}):")
+        for g in gaps:
+            print(f"    -> {g}")
+
+    print(f"\n  PR Report saved -> {report_path}")
+
 
 if __name__ == "__main__":
     config = get_runtime_config()
@@ -401,4 +445,30 @@ if __name__ == "__main__":
         print("\n" + "=" * 55)
         print("  RUN COMPLETE")
         print("=" * 55)
+
+        # ── PHASE 9 ──────────────────────────────────────────────
+        print("\n" + "=" * 55)
+        print("  PHASE 9: CI/CD Integration")
+        print("=" * 55 + "\n")
+
+        # Step 1 — Build CI decision
+        ci_decision = CIDecision()
+        decision_result = ci_decision.save()
+
+        # Step 2 — Generate PR report
+        reporter = PRReporter(
+            repo_owner=pr_owner,
+            repo_name=pr_repo,
+            pr_number=pr_number
+        )
+        reporter.save_report()
+
+        # Step 3 — Post comment to GitHub PR (only if token available)
+        if os.getenv("GITHUB_TOKEN"):
+            reporter.post_comment()
+        else:
+            print("GITHUB_TOKEN not set — PR comment skipped.")
+            print("Report saved locally to storage/pr_report.md")
+
+        print_phase9_results(decision_result, "storage/pr_report.md")
         

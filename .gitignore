@@ -43,3 +43,7 @@ dist/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Implementation docs
+IMPLEMENTATION_PHASES.md
+IMPLEMENTATION_STATUS.md
