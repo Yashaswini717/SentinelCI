@@ -88,7 +88,7 @@ class SimilarityEngine:
             embeddings.append(chunk["embedding"])
             documents.append(chunk["text"][:500])  # store preview
 
-            # Store metadata (no embedding — too large)
+            # Store metadata (no embedding - too large)
             metadatas.append({
                 "type": chunk["type"],
                 "module": chunk["module"],

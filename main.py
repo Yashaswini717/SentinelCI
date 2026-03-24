@@ -1,4 +1,3 @@
-import json
 import os
 import requests
 import shutil
@@ -270,7 +269,7 @@ def print_phase8_results(result: dict):
     if components:
         print("\n  Score Breakdown:")
         for component, score in components.items():
-            bar = "█" * int(score)
+            bar = "#" * int(score)
             print(f"    {component:<25} {score:>5}  {bar}")
 
     rec = result.get("recommendation", {})
@@ -281,13 +280,13 @@ def print_phase8_results(result: dict):
     if suites:
         print(f"\n  Required Suites:")
         for s in suites:
-            print(f"    -> {s}")
+            print(f"    - {s}")
 
 def print_phase9_results(decision: dict, report_path: str):
     status_symbols = {
-        "ready": "✓",
-        "warning": "!",
-        "blocked": "✗"
+        "ready": "OK",
+        "warning": "WARN",
+        "blocked": "BLOCK"
     }
     status = decision.get("pipeline_status", "unknown")
     symbol = status_symbols.get(status, "?")
@@ -316,13 +315,13 @@ def print_phase9_results(decision: dict, report_path: str):
     if generated:
         print(f"\n  Generated Tests ({len(generated)}):")
         for t in generated:
-            print(f"    -> {t}")
+            print(f"    - {t}")
 
     gaps = decision.get("coverage_gaps", [])
     if gaps:
         print(f"\n  Coverage Gaps ({len(gaps)}):")
         for g in gaps:
-            print(f"    -> {g}")
+            print(f"    - {g}")
 
     print(f"\n  PR Report saved -> {report_path}")
 
@@ -342,6 +341,8 @@ if __name__ == "__main__":
     print(f"  Repo URL      : {github_url}")
     print(f"  PR            : {pr_owner}/{pr_repo}#{pr_number}")
     print(f"  Semantic conf : threshold={semantic_threshold}, top_k={semantic_top_k}")
+
+    run_success = False
 
     try:
         # ── PHASE 1 ──────────────────────────────────────────────
@@ -437,25 +438,14 @@ if __name__ == "__main__":
         risk_result = risk_agent.save()
         print_phase8_results(risk_result)
 
-    finally:
-        if os.path.exists("datasets/virtual_repo"):
-            shutil.rmtree("datasets/virtual_repo")
-            print("\nCleaned up datasets/virtual_repo")
-
-        print("\n" + "=" * 55)
-        print("  RUN COMPLETE")
-        print("=" * 55)
-
         # ── PHASE 9 ──────────────────────────────────────────────
         print("\n" + "=" * 55)
         print("  PHASE 9: CI/CD Integration")
         print("=" * 55 + "\n")
 
-        # Step 1 — Build CI decision
         ci_decision = CIDecision()
         decision_result = ci_decision.save()
 
-        # Step 2 — Generate PR report
         reporter = PRReporter(
             repo_owner=pr_owner,
             repo_name=pr_repo,
@@ -463,12 +453,24 @@ if __name__ == "__main__":
         )
         reporter.save_report()
 
-        # Step 3 — Post comment to GitHub PR (only if token available)
         if os.getenv("GITHUB_TOKEN"):
             reporter.post_comment()
         else:
-            print("GITHUB_TOKEN not set — PR comment skipped.")
+            print("GITHUB_TOKEN not set - PR comment skipped.")
             print("Report saved locally to storage/pr_report.md")
 
         print_phase9_results(decision_result, "storage/pr_report.md")
+        run_success = True
+
+    finally:
+        if os.path.exists("datasets/virtual_repo"):
+            shutil.rmtree("datasets/virtual_repo")
+            print("\nCleaned up datasets/virtual_repo")
+
+        print("\n" + "=" * 55)
+        if run_success:
+            print("  RUN COMPLETE")
+        else:
+            print("  RUN FINISHED WITH ERRORS")
+        print("=" * 55)
         

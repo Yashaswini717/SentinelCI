@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 from semantic_analysis.code_chunker import CodeChunker
 from semantic_analysis.code_embedder import CodeEmbedder
@@ -29,7 +28,7 @@ class SemanticImpactAgent:
         storage_path: str = "storage/semantic_index",
         similarity_threshold: float = 0.75,
         top_k: int = 10,
-        embedding_model: str = "openai/text-embedding-3-small"  # ← change this line
+        embedding_model: str = "openai/text-embedding-3-small"
     ):
         self.pr_analysis_path = Path(pr_analysis_path)
         self.function_index_path = Path(function_index_path)
@@ -151,10 +150,10 @@ class SemanticImpactAgent:
 
     def build_index(self):
         """
-        Step 1+2+3: Chunk → Embed → Index
+        Step 1+2+3: Chunk -> Embed -> Index
         Call this once per repository.
         """
-        print("── Building Semantic Index ──────────────────\n")
+        print("-- Building Semantic Index -------------------\n")
 
         # Check if index already exists
         if self.engine.collection_size() > 0:
@@ -196,7 +195,7 @@ class SemanticImpactAgent:
         print(f"Searching semantic impact for "
               f"{len(changed_symbols)} changed symbols...\n")
 
-        all_matches = {}  # module → best score
+        all_matches = {}  # module -> best score
 
         for symbol in changed_symbols:
             print(f"  Searching for: {symbol['id']}")

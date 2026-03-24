@@ -105,7 +105,7 @@ class CodeChunker:
 
     def chunk_modules(self) -> list:
         """
-        Create one chunk per module — uses full file source.
+        Create one chunk per module - uses full file source.
         id format: module::__module__
         """
         repo_structure = self._load_json(self.repo_structure_path)

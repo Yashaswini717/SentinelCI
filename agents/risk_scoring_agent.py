@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Optional
 
 
 class RiskScoringAgent:
@@ -30,8 +31,8 @@ class RiskScoringAgent:
 
     # ── Loaders ──────────────────────────────────────────────────
 
-    def _load_json(self, path: Path, default: dict = None) -> dict:
-        """Load JSON file safely — returns default if missing."""
+    def _load_json(self, path: Path, default: Optional[dict] = None) -> dict:
+        """Load JSON file safely - returns default if missing."""
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -215,7 +216,7 @@ class RiskScoringAgent:
 
         if change_type == "signature_change":
             score += 8
-            drivers.append("Signature change detected — callers may break")
+            drivers.append("Signature change detected - callers may break")
         elif change_type == "body_change":
             score += 3
         else:
@@ -253,7 +254,7 @@ class RiskScoringAgent:
 
         if len(tests_to_run) == 0:
             score += 4
-            drivers.append("No tests selected — full regression recommended")
+            drivers.append("No tests selected - full regression recommended")
 
         if failed_generations > 0:
             score += 3
@@ -363,24 +364,24 @@ class RiskScoringAgent:
 
         if risk_level == "low":
             rec["message"] = (
-                f"Low risk — {driver_count} minor factor(s) detected. "
+                f"Low risk - {driver_count} minor factor(s) detected. "
                 f"Running selected tests is sufficient before merging."
             )
         elif risk_level == "medium":
             rec["message"] = (
-                f"Medium risk — {driver_count} factor(s) detected. "
+                f"Medium risk - {driver_count} factor(s) detected. "
                 f"Top concern: {top_driver}. "
                 f"Run selected tests and smoke suite before merging."
             )
         elif risk_level == "high":
             rec["message"] = (
-                f"High risk — {driver_count} factor(s) detected. "
+                f"High risk - {driver_count} factor(s) detected. "
                 f"Top concern: {top_driver}. "
                 f"Extended regression required before merging."
             )
         elif risk_level == "critical":
             rec["message"] = (
-                f"Critical risk — {driver_count} factor(s) detected. "
+                f"Critical risk - {driver_count} factor(s) detected. "
                 f"Top concern: {top_driver}. "
                 f"Full regression and manual review required before merging."
             )

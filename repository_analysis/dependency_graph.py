@@ -208,7 +208,7 @@ class DependencyGraphBuilder:
         """
         Given a changed module, traverse the graph and find
         ALL modules that directly or indirectly depend on it.
-        Uses reverse BFS — finds who imports the changed module.
+        Uses reverse BFS - finds who imports the changed module.
         """
         # Build reverse graph: "who imports X"
         reverse_graph = {}
