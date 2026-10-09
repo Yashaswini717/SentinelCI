@@ -31,13 +31,14 @@ class DependencyGraphBuilder:
         return dotted_path.replace(".", "/")
 
     def _resolve_relative_module(self, module_key: str, level: int, module_name: str | None) -> str:
+        # Absolute import (from x.y import z) - not relative to this package
+        if level == 0:
+            return "/".join(part for part in (module_name or "").split(".") if part)
+
         package = self._module_to_package(module_key)
         package_parts = [part for part in package.split(".") if part]
 
-        if level > 0:
-            trimmed_parts = package_parts[:-level + 1] if level > 1 else package_parts
-        else:
-            trimmed_parts = package_parts
+        trimmed_parts = package_parts[:-level + 1] if level > 1 else package_parts
 
         if module_name:
             trimmed_parts.extend([part for part in module_name.split(".") if part])
@@ -47,7 +48,7 @@ class DependencyGraphBuilder:
     def _extract_imports(self, file_path: Path, module_key: str) -> list:
         imports = []
         try:
-            source = file_path.read_text(encoding="utf-8")
+            source = file_path.read_text(encoding="utf-8", errors="ignore")
             tree = ast.parse(source)
 
             for node in ast.walk(tree):
@@ -78,21 +79,21 @@ class DependencyGraphBuilder:
 
     def _resolve_import(self, raw_import: str, file_map: dict) -> str | None:
         """Match a raw import string to a known module in the file_map."""
-        normalized = self._normalize_module_path(raw_import)
+        parts = [p for p in self._normalize_module_path(raw_import).split("/") if p]
 
-        if normalized in file_map:
-            return normalized
+        # "from pkg.module import Name" yields "pkg/module/Name", so try the
+        # full path first, then drop trailing segments until a module matches
+        for end in range(len(parts), 0, -1):
+            candidate = "/".join(parts[:end])
 
-        package_init = f"{normalized}/__init__"
-        if package_init in file_map:
-            return package_init
+            if candidate in file_map:
+                return candidate
 
-        for key in file_map:
-            if key.endswith(normalized):
-                return key
-
-            if normalized.startswith(f"{key}/"):
-                return key
+            # Match on whole path segments, e.g. "requests/models" matches
+            # "src/requests/models" (src layout) but "os" must not match "repos"
+            for key in file_map:
+                if key.endswith(f"/{candidate}"):
+                    return key
 
         return None
 

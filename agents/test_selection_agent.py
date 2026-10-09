@@ -32,7 +32,8 @@ def invert_test_mapping(test_mapping: dict) -> dict:
 
 
 def is_valid_test_file(test_path: str) -> bool:
-    return test_path.startswith("tests/test_") or "/test_" in test_path
+    name = test_path.replace("\\", "/").rsplit("/", 1)[-1]
+    return name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py"))
 
 
 def compute_risk_score(module: str, dependency_metrics: dict, impact_lookup: dict) -> float:
@@ -58,6 +59,7 @@ def run_test_selection(output_path: str = "storage/test_selection.json"):
         "storage/semantic_impact.json",
         default={"semantic_related_modules": [], "total_semantic_matches": 0}
     )
+    pr_data = load_json("storage/pr_analysis.json", default={})
     raw_test_mapping = load_json("storage/test_mapping.json", default={})
     dependency_metrics = load_json("storage/dependency_metrics.json", default={})
 
@@ -108,7 +110,20 @@ def run_test_selection(output_path: str = "storage/test_selection.json"):
             }
         return test_candidates[test_path]
 
-    for module in affected_modules:
+    # Test files edited in the PR itself always run first
+    changed_tests = pr_data.get("changed_tests", [])
+    if not isinstance(changed_tests, list):
+        changed_tests = []
+    for test in changed_tests:
+        if isinstance(test, str) and is_valid_test_file(test):
+            cand = ensure_candidate(test)
+            cand["priority"] = 0
+            cand["reasons"] = list(cand["reasons"]) + ["changed_in_pr"]
+
+    # Tests for the changed modules themselves, plus modules that depend on them
+    static_modules = list(dict.fromkeys(changed_modules + affected_modules))
+
+    for module in static_modules:
         tests = sorted(module_to_tests.get(module, set()))
         if not tests:
             continue
@@ -183,6 +198,7 @@ def run_test_selection(output_path: str = "storage/test_selection.json"):
         "tests_to_run": tests_to_run,
         "selection_summary": {
             "total_tests": len(tests_to_run),
+            "changed_tests": sum(1 for t in tests_to_run if test_candidates[t]["priority"] == 0),
             "static_tests": sum(1 for t in tests_to_run if test_candidates[t]["priority"] == 1),
             "semantic_tests": sum(1 for t in tests_to_run if test_candidates[t]["priority"] == 2),
             "fallback_tests": sum(1 for t in tests_to_run if test_candidates[t]["priority"] == 3)

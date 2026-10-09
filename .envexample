@@ -1,13 +1,24 @@
 # Copy this file to `.env` and fill values.
 
-# Optional: OpenRouter key for Phase 5 semantic embeddings
+# Optional: OpenRouter key for Phase 5 semantic embeddings and Phase 7 LLM test generation
 OPENROUTER_API_KEY=
 
-# Optional runtime config (main.py currently uses hardcoded defaults)
+# Optional: GitHub token. Raises the API rate limit from 60 to 5000 requests/hour.
+# GITHUB_TOKEN=
+
+# PR to analyze (defaults to psf/requests#6710)
 # GITHUB_URL=https://github.com/psf/requests
 # PR_OWNER=psf
 # PR_REPO=requests
 # PR_NUMBER=6710
+
+# Optional: analyze a local checkout instead of downloading the PR's code.
+# The CI workflow sets this to the checked-out workspace.
+# REPO_PATH=.
+
+# Optional: post the report as a PR comment from a local run
+# (needs GITHUB_TOKEN with write access to that repo). Off by default.
+# POST_PR_COMMENT=true
 
 # Optional semantic tuning
 # SEMANTIC_SIMILARITY_THRESHOLD=0.50
@@ -15,3 +26,6 @@ OPENROUTER_API_KEY=
 
 # Optional model override for generated tests
 # TEST_GEN_MODEL=mistralai/mistral-7b-instruct
+
+# Optional: max seconds per test run in CI (default 600)
+# TEST_RUN_TIMEOUT=600

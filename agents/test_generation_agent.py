@@ -6,9 +6,8 @@ from pathlib import Path
 import requests
 
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OUTPUT_DIR = Path("generated_tests")
-TEST_GEN_MODEL = os.getenv("TEST_GEN_MODEL", "mistralai/mistral-7b-instruct")
+DEFAULT_TEST_GEN_MODEL = "mistralai/mistral-7b-instruct"
 
 
 def load_json(path: str, default=None):
@@ -26,12 +25,12 @@ def normalize_module(module: str) -> str:
     return normalized.replace("/", ".")
 
 
-def module_to_path(module: str) -> Path:
+def module_to_path(module: str, repo_path: str = "datasets/virtual_repo") -> Path:
     module_path = module.replace(".", "/")
 
     candidates = [
-        Path("datasets/virtual_repo") / f"{module_path}.py",
-        Path("datasets/virtual_repo") / "src" / f"{module_path}.py"
+        Path(repo_path) / f"{module_path}.py",
+        Path(repo_path) / "src" / f"{module_path}.py"
     ]
 
     for candidate in candidates:
@@ -41,8 +40,8 @@ def module_to_path(module: str) -> Path:
     return candidates[0]
 
 
-def read_module_code(module: str) -> str:
-    path = module_to_path(module)
+def read_module_code(module: str, repo_path: str = "datasets/virtual_repo") -> str:
+    path = module_to_path(module, repo_path)
     if not path.exists():
         return ""
 
@@ -148,6 +147,29 @@ def generate_structural_fallback_test(module: str, code: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def is_valid_test_code(code: str) -> bool:
+    """
+    Basic validation for generated test code: it must parse as Python
+    and define at least one pytest test function.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+
+    return any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test")
+        for node in ast.walk(tree)
+    )
+
+
+def fallback_test(module: str, code: str) -> str:
+    if module == "requests.api":
+        return generate_requests_api_fallback_test(module)
+    return generate_structural_fallback_test(module, code)
+
+
 def clean_generated_code(text: str) -> str:
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -159,16 +181,18 @@ def clean_generated_code(text: str) -> str:
     return cleaned.rstrip() + "\n"
 
 
-def generate_test_with_llm(module: str, code: str) -> str:
-    if not OPENROUTER_API_KEY:
-        if module == "requests.api":
-            return generate_requests_api_fallback_test(module)
-        return generate_structural_fallback_test(module, code)
+def generate_test_with_llm(module: str, code: str) -> tuple[str, str]:
+    """Returns (test_code, source) where source is "llm" or "template"."""
+    # Read at call time - main.py loads .env after this module is imported
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return fallback_test(module, code), "template"
 
     prompt = (
         "You are a Python testing expert.\n\n"
         f"Write pytest tests for module: {module}.\n"
-        "Return only runnable Python code.\n"
+        f"Import it with: import {module}\n"
+        "Return only runnable Python code. Do not make network calls.\n"
         "Include at least 3 tests and edge cases when possible.\n\n"
         "Code:\n"
         f"{code[:4000]}"
@@ -178,11 +202,11 @@ def generate_test_with_llm(module: str, code: str) -> str:
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             },
             json={
-                "model": TEST_GEN_MODEL,
+                "model": os.getenv("TEST_GEN_MODEL", DEFAULT_TEST_GEN_MODEL),
                 "messages": [{"role": "user", "content": prompt}]
             },
             timeout=60
@@ -190,13 +214,14 @@ def generate_test_with_llm(module: str, code: str) -> str:
 
         data = response.json()
         if "choices" in data and data["choices"]:
-            return clean_generated_code(data["choices"][0]["message"]["content"])
-    except Exception:
-        pass
+            generated = clean_generated_code(data["choices"][0]["message"]["content"])
+            if is_valid_test_code(generated):
+                return generated, "llm"
+            print(f"  LLM output for {module} is not valid test code - using template instead")
+    except Exception as e:
+        print(f"  LLM test generation failed for {module}: {type(e).__name__}: {e}")
 
-    if module == "requests.api":
-        return generate_requests_api_fallback_test(module)
-    return generate_structural_fallback_test(module, code)
+    return fallback_test(module, code), "template"
 
 
 def save_test_file(module: str, test_code: str) -> str:
@@ -207,7 +232,10 @@ def save_test_file(module: str, test_code: str) -> str:
     return file_path.as_posix()
 
 
-def run_test_generation(output_path: str = "storage/test_generation.json"):
+def run_test_generation(
+    output_path: str = "storage/test_generation.json",
+    repo_path: str = "datasets/virtual_repo"
+):
     print("\nRunning Phase 7: Test Generation Agent\n")
 
     selection = load_json("storage/test_selection.json", default={})
@@ -234,21 +262,27 @@ def run_test_generation(output_path: str = "storage/test_generation.json"):
             continue
 
         module = normalize_module(raw_module)
-        code = read_module_code(module)
+        code = read_module_code(module, repo_path)
 
         if not code:
             failed += 1
             continue
 
-        test_code = generate_test_with_llm(module, code)
+        test_code, source = generate_test_with_llm(module, code)
+        valid = is_valid_test_code(test_code)
+        if not valid:
+            failed += 1
+            continue
+
         file_path = save_test_file(module, test_code)
         generated_tests.append({
             "target": module,
             "test_type": "unit",
             "reason": "coverage_gap",
+            "source": source,
             "path": file_path
         })
-        print(f"Generated -> {file_path}")
+        print(f"Generated -> {file_path} ({source})")
 
     result = {
         "generated_tests": generated_tests,

@@ -1,5 +1,5 @@
 import json
-import os
+import shlex
 from pathlib import Path
 from typing import Optional
 
@@ -16,8 +16,11 @@ class CIDecision:
         self,
         risk_report_path: str = "storage/risk_report.json",
         test_selection_path: str = "storage/test_selection.json",
-        test_generation_path: str = "storage/test_generation.json"
+        test_generation_path: str = "storage/test_generation.json",
+        repo_path: Optional[str] = None
     ):
+        # Root of the analyzed repo, used to check which test paths exist
+        self.repo_path = Path(repo_path) if repo_path else None
         self.risk_report_path = Path(risk_report_path)
         self.test_selection_path = Path(test_selection_path)
         self.test_generation_path = Path(test_generation_path)
@@ -31,34 +34,89 @@ class CIDecision:
         except json.JSONDecodeError:
             return default if default is not None else {}
 
-    def _get_test_commands(self, tests_to_run: list, risk_level: str) -> list:
-        """Generate pytest commands based on selected tests and risk level."""
-        commands = []
+    def _existing(self, paths: list) -> list:
+        """Keep only test paths that exist in the analyzed repo."""
+        if self.repo_path is None:
+            return [p for p in paths if isinstance(p, str)]
+        return [
+            p for p in paths
+            if isinstance(p, str) and (self.repo_path / p).exists()
+        ]
 
-        def quote(path: str) -> str:
-            if any(ch in path for ch in [" ", "\t", "\n", "\""]):
-                escaped = path.replace("\"", '\\\"')
-                return f'"{escaped}"'
-            return path
+    def _find_test_dir(self) -> Optional[str]:
+        """Find the repo's main test folder, if it has one."""
+        if self.repo_path is None:
+            return None
+        for name in ("tests", "test"):
+            if (self.repo_path / name).is_dir():
+                return name
+        return None
 
-        if not tests_to_run:
-            if risk_level in ("high", "critical"):
-                commands.append("pytest tests/ -v")
-            else:
-                commands.append("pytest tests/ -v --tb=short")
-            return commands
+    def _get_test_runs(
+        self, tests_to_run: list, generated_tests: list, risk_level: str
+    ) -> list:
+        """
+        Build the pytest runs the CI should execute.
 
-        test_args = " ".join(quote(test) for test in tests_to_run)
-        commands.append(f"pytest {test_args} -v")
+        Each run has pytest arguments and a "blocking" flag. Failures in
+        blocking runs fail CI; generated tests are informational only,
+        since auto-generated code can be wrong.
+        """
+        runs = []
+        selected = self._existing(tests_to_run)
+        test_dir = self._find_test_dir()
 
-        if risk_level == "medium":
-            commands.append("pytest tests/ -v -m smoke --tb=short")
-        elif risk_level == "high":
-            commands.append("pytest tests/ -v -m 'smoke or integration' --tb=short")
-        elif risk_level == "critical":
-            commands.append("pytest tests/ -v --tb=long")
+        if selected:
+            runs.append({
+                "name": "selected_tests",
+                "pytest_args": selected + ["-v", "--tb=short"],
+                "blocking": True
+            })
+        elif test_dir:
+            # Nothing mapped to the change - run the whole suite to be safe
+            runs.append({
+                "name": "full_suite",
+                "pytest_args": [test_dir, "-v", "--tb=short"],
+                "blocking": True
+            })
 
-        return commands
+        if test_dir and selected:
+            if risk_level == "medium":
+                runs.append({
+                    "name": "smoke_tests",
+                    "pytest_args": [test_dir, "-v", "-m", "smoke", "--tb=short"],
+                    "blocking": True
+                })
+            elif risk_level == "high":
+                runs.append({
+                    "name": "smoke_and_integration_tests",
+                    "pytest_args": [test_dir, "-v", "-m", "smoke or integration", "--tb=short"],
+                    "blocking": True
+                })
+            elif risk_level == "critical":
+                runs.append({
+                    "name": "full_regression",
+                    "pytest_args": [test_dir, "-v", "--tb=long"],
+                    "blocking": True
+                })
+
+        # Generated tests are written by SentinelCI relative to the working
+        # directory, not inside the analyzed repo
+        generated = [
+            p for p in generated_tests
+            if isinstance(p, str) and Path(p).exists()
+        ]
+        if generated:
+            runs.append({
+                "name": "generated_tests",
+                "pytest_args": generated + ["-v", "--tb=short"],
+                "blocking": False
+            })
+
+        for run in runs:
+            run["command"] = "python -m pytest " + shlex.join(run["pytest_args"])
+
+        return runs
 
     def _get_pipeline_status(
         self, risk_level: str, coverage_gaps: list
@@ -86,6 +144,7 @@ class CIDecision:
         # Fail-safe: if risk report missing, block merge
         if not risk_report:
             print("FAIL-SAFE triggered: risk_report.json missing or empty.")
+            test_runs = self._get_test_runs([], [], "critical")
             return {
                 "error": "risk_report.json not found",
                 "pipeline_status": "blocked",
@@ -100,7 +159,8 @@ class CIDecision:
                 "generated_tests": [],
                 "coverage_gaps": [],
                 "required_suites": ["full_regression"],
-                "test_commands": ["pytest tests/ -v"],
+                "test_runs": test_runs,
+                "test_commands": [r["command"] for r in test_runs],
                 "top_drivers": ["Risk report unavailable"],
                 "total_risk_drivers": 1
             }
@@ -122,7 +182,9 @@ class CIDecision:
         required_suites = recommendation.get("required_suites", [])
         message = recommendation.get("message", "")
 
-        test_commands = self._get_test_commands(tests_to_run, risk_level)
+        test_runs = self._get_test_runs(
+            tests_to_run, generated_test_paths, risk_level
+        )
         pipeline_status = self._get_pipeline_status(risk_level, coverage_gaps)
 
         return {
@@ -135,9 +197,14 @@ class CIDecision:
             "generated_tests": generated_test_paths,
             "coverage_gaps": coverage_gaps,
             "required_suites": required_suites,
-            "test_commands": test_commands,
+            "test_runs": test_runs,
+            "test_commands": [r["command"] for r in test_runs],
             "top_drivers": drivers[:3],
-            "total_risk_drivers": len(drivers)
+            "total_risk_drivers": len(drivers),
+            "score_breakdown": {
+                name: {"points": points, "max": risk_report.get("max_points", {}).get(name)}
+                for name, points in risk_report.get("components", {}).items()
+            }
         }
 
     def save(self, output_path: str = "storage/ci_decision.json") -> dict:
@@ -146,7 +213,7 @@ class CIDecision:
         output = Path(output_path)
         output.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output, "w") as f:
+        with open(output, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
         print(f"Saved CI decision -> {output_path}")

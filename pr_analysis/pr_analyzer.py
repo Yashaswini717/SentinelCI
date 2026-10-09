@@ -21,7 +21,7 @@ class PRAnalyzer:
 
     def load_repo_structure(self):
 
-        with open(self.repo_structure_path, "r") as f:
+        with open(self.repo_structure_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
     def map_files_to_modules(self, changed_files, file_map):
@@ -43,9 +43,13 @@ class PRAnalyzer:
 
         parser = DiffParser()
 
+        repo_structure = self.load_repo_structure()
+        test_paths = set(repo_structure.get("test_file_map", {}).values())
+
         changed_functions = set()
         changed_classes = set()
         modified_symbols = set()
+        modified_definitions = set()
         diff_metrics = {
             "lines_added": 0,
             "lines_deleted": 0
@@ -53,34 +57,49 @@ class PRAnalyzer:
 
         for file, patch in patches.items():
 
+            # Only Python diffs describe functions/classes; a "def" inside
+            # a YAML or Markdown diff is not a changed Python symbol
+            if not file.endswith(".py"):
+                continue
+
+            # Test code isn't product API - edited test files are tracked
+            # separately as changed_tests
+            if file in test_paths:
+                continue
+
             analysis = parser.analyze_patch(patch)
 
             changed_functions.update(analysis["changed_functions"])
             changed_classes.update(analysis["changed_classes"])
             modified_symbols.update(analysis["modified_symbols"])
+            modified_definitions.update(analysis["modified_definitions"])
             diff_metrics["lines_added"] += analysis["lines_added"]
             diff_metrics["lines_deleted"] += analysis["lines_deleted"]
-
-        repo_structure = self.load_repo_structure()
 
         changed_modules = self.map_files_to_modules(
             changed_files,
             repo_structure["file_map"]
         )
 
+        # Test files edited in this PR should always be run
+        changed_tests = sorted(f for f in changed_files if f in test_paths)
+
         result = {
             "changed_files": changed_files,
-            "changed_modules": list(set(changed_modules)),
+            "changed_modules": sorted(set(changed_modules)),
+            "changed_tests": changed_tests,
             "changed_functions": sorted(changed_functions),
             "changed_classes": sorted(changed_classes),
             "modified_symbols": sorted(modified_symbols),
+            "modified_definitions": sorted(modified_definitions),
             "change_metrics": {
                 "files_changed": pr_metrics["files_changed"],
                 "lines_added": pr_metrics["lines_added"],
                 "lines_deleted": pr_metrics["lines_deleted"],
                 "patch_lines_added": diff_metrics["lines_added"],
                 "patch_lines_deleted": diff_metrics["lines_deleted"]
-            }
+            },
+            "file_stats": pr_metrics["file_stats"]
         }
 
         return result

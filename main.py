@@ -1,10 +1,11 @@
 import os
-import requests
 import shutil
 import pathlib
 
+from utils.github_api import github_get, download_raw_file
 from repository_analysis.repository_parser import RepositoryParser
 from repository_analysis.dependency_graph import DependencyGraphBuilder
+from pr_analysis.pr_fetcher import PRFetcher
 from pr_analysis.pr_analyzer import PRAnalyzer
 from agents.change_impact_agent import ChangeImpactAgent
 from agents.test_selection_agent import run_test_selection
@@ -21,10 +22,10 @@ except Exception:
 
 def get_runtime_config() -> dict:
     github_url = os.getenv("GITHUB_URL", "https://github.com/psf/requests")
-    pr_owner = os.getenv("PR_OWNER", "psf")
-    pr_repo = os.getenv("PR_REPO", "requests")
+    pr_owner   = os.getenv("PR_OWNER",   "psf")
+    pr_repo    = os.getenv("PR_REPO",    "requests")
+    pr_number_raw  = os.getenv("PR_NUMBER",  "6710")
 
-    pr_number_raw = os.getenv("PR_NUMBER", "6710")
     try:
         pr_number = int(pr_number_raw)
     except ValueError as e:
@@ -44,11 +45,18 @@ def get_runtime_config() -> dict:
     except ValueError as e:
         raise ValueError(f"Invalid SEMANTIC_TOP_K '{semantic_top_k_raw}'. Expected an integer.") from e
 
+    # Optional: analyze an existing local checkout (e.g. the CI workspace)
+    # instead of downloading the repository from GitHub
+    repo_path = os.getenv("REPO_PATH") or None
+    if repo_path and not os.path.isdir(repo_path):
+        raise ValueError(f"REPO_PATH '{repo_path}' is not a directory.")
+
     return {
         "github_url": github_url,
         "pr_owner": pr_owner,
         "pr_repo": pr_repo,
         "pr_number": pr_number,
+        "repo_path": repo_path,
         "semantic_threshold": semantic_threshold,
         "semantic_top_k": semantic_top_k
     }
@@ -59,28 +67,39 @@ def ensure_runtime_directories():
     pathlib.Path("datasets").mkdir(parents=True, exist_ok=True)
 
 
-def fetch_repo_tree(github_url: str) -> list:
-    parts = github_url.rstrip("/").split("/")
-    owner = parts[-2]
-    repo = parts[-1]
+def clear_previous_outputs():
+    """
+    Remove outputs from a previous run, so a phase that fails or is
+    skipped this time can't leave stale results behind for later phases.
+    """
+    storage = pathlib.Path("storage")
+    for pattern in ("*.json", "*.dot", "*.png", "pr_report.md"):
+        for path in storage.glob(pattern):
+            path.unlink()
 
-    api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/HEAD?recursive=1"
-    print(f"Fetching file tree for {owner}/{repo} from GitHub API ...")
-    response = requests.get(api_url)
+    if os.path.isdir("generated_tests"):
+        shutil.rmtree("generated_tests")
 
-    if response.status_code != 200:
-        raise Exception(f"GitHub API error: {response.status_code} - {response.json().get('message')}")
 
-    tree = response.json().get("tree", [])
+def parse_github_url(github_url: str) -> tuple[str, str]:
+    parts = github_url.rstrip("/").removesuffix(".git").split("/")
+    return parts[-2], parts[-1]
+
+
+def fetch_repo_tree(owner: str, repo: str, ref: str = "HEAD") -> list:
+    print(f"Fetching file tree for {owner}/{repo}@{ref[:12]} from GitHub API ...")
+    response = github_get(f"/repos/{owner}/{repo}/git/trees/{ref}", params={"recursive": 1})
+
+    data = response.json()
+    if data.get("truncated"):
+        print("WARNING: repository tree is too large and was truncated by GitHub - analysis may be incomplete.")
+
+    tree = data.get("tree", [])
     print(f"Fetched {len(tree)} items from repo\n")
     return tree
 
 
-def fetch_file_contents(github_url: str, tree: list, dest_folder: str = "datasets/virtual_repo") -> str:
-    parts = github_url.rstrip("/").split("/")
-    owner = parts[-2]
-    repo = parts[-1]
-
+def fetch_file_contents(owner: str, repo: str, ref: str, tree: list, dest_folder: str = "datasets/virtual_repo") -> str:
     skip_dirs = {
         "venv", ".venv", "__pycache__", ".git",
         ".tox", "node_modules", "dist", "build", ".eggs",
@@ -100,15 +119,15 @@ def fetch_file_contents(github_url: str, tree: list, dest_folder: str = "dataset
         if any(part in skip_dirs for part in path_parts):
             continue
 
-        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD/{path}"
-        response = requests.get(raw_url)
+        content = download_raw_file(owner, repo, ref, path)
 
         full_path = pathlib.Path(dest_folder) / path
         full_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if response.status_code == 200:
-            full_path.write_text(response.text, encoding="utf-8")
+        if content is not None:
+            full_path.write_text(content, encoding="utf-8")
         else:
+            print(f"  WARNING: could not download {path}")
             full_path.touch()
 
     print(f"Files downloaded to {dest_folder}\n")
@@ -266,11 +285,12 @@ def print_phase8_results(result: dict):
             print(f"    !  {d}")
 
     components = result.get("components", {})
+    max_points = result.get("max_points", {})
     if components:
-        print("\n  Score Breakdown:")
+        print("\n  Score Breakdown (points / max):")
         for component, score in components.items():
             bar = "#" * int(score)
-            print(f"    {component:<25} {score:>5}  {bar}")
+            print(f"    {component:<18} {score:>5} / {max_points.get(component, '?'):<3} {bar}")
 
     rec = result.get("recommendation", {})
     print(f"\n  Recommendation : {rec.get('action', 'unknown').upper()}")
@@ -337,12 +357,18 @@ if __name__ == "__main__":
     semantic_threshold = config["semantic_threshold"]
     semantic_top_k = config["semantic_top_k"]
 
+    local_repo_path = config["repo_path"]
+
     print("Runtime configuration:")
     print(f"  Repo URL      : {github_url}")
     print(f"  PR            : {pr_owner}/{pr_repo}#{pr_number}")
+    print(f"  Source        : {'local checkout at ' + local_repo_path if local_repo_path else 'download from GitHub'}")
     print(f"  Semantic conf : threshold={semantic_threshold}, top_k={semantic_top_k}")
 
+    clear_previous_outputs()
+
     run_success = False
+    downloaded_repo_path = None
 
     try:
         # ── PHASE 1 ──────────────────────────────────────────────
@@ -350,10 +376,30 @@ if __name__ == "__main__":
         print("  PHASE 1: Repository Parser")
         print("=" * 55 + "\n")
 
-        tree = fetch_repo_tree(github_url)
-        repo_path = fetch_file_contents(github_url, tree)
+        if local_repo_path:
+            repo_path = local_repo_path
+        else:
+            owner, repo = parse_github_url(github_url)
+            ref = "HEAD"
 
-        parser = RepositoryParser(repo_path=repo_path)
+            # Analyze the PR's own code, not the default branch
+            if (owner, repo) == (pr_owner, pr_repo):
+                pr_info = PRFetcher(pr_owner, pr_repo, pr_number).fetch_pr_info()
+                if pr_info.get("head_sha"):
+                    owner = pr_info["head_owner"]
+                    repo = pr_info["head_repo"]
+                    ref = pr_info["head_sha"]
+
+            tree = fetch_repo_tree(owner, repo, ref)
+            repo_path = fetch_file_contents(owner, repo, ref, tree)
+            downloaded_repo_path = repo_path
+
+        # Don't analyze SentinelCI's own output folders when they sit
+        # inside the analyzed checkout
+        parser = RepositoryParser(
+            repo_path=repo_path,
+            exclude_paths=["storage", "datasets", "generated_tests"]
+        )
         result = parser.save()
         print_phase1_results(result)
 
@@ -426,7 +472,7 @@ if __name__ == "__main__":
         print("  PHASE 7: Test Generation Agent")
         print("=" * 55 + "\n")
 
-        phase7_result = run_test_generation()
+        phase7_result = run_test_generation(repo_path=repo_path)
         print_phase7_results(phase7_result)
 
         # ── PHASE 8 ──────────────────────────────────────────────
@@ -434,7 +480,7 @@ if __name__ == "__main__":
         print("  PHASE 8: Risk Scoring System")
         print("=" * 55 + "\n")
 
-        risk_agent = RiskScoringAgent()
+        risk_agent = RiskScoringAgent(repo_path=repo_path)
         risk_result = risk_agent.save()
         print_phase8_results(risk_result)
 
@@ -443,7 +489,7 @@ if __name__ == "__main__":
         print("  PHASE 9: CI/CD Integration")
         print("=" * 55 + "\n")
 
-        ci_decision = CIDecision()
+        ci_decision = CIDecision(repo_path=repo_path)
         decision_result = ci_decision.save()
 
         reporter = PRReporter(
@@ -453,19 +499,26 @@ if __name__ == "__main__":
         )
         reporter.save_report()
 
-        if os.getenv("GITHUB_TOKEN"):
+        # In GitHub Actions the workflow posts the comment in a later step,
+        # after tests have run, so skip it here to avoid duplicates.
+        # Local runs only post when explicitly asked to, so a token in .env
+        # never comments on someone else's PR by accident.
+        if os.getenv("GITHUB_ACTIONS") == "true":
+            print("Running in GitHub Actions - PR comment will be posted by the workflow.")
+        elif os.getenv("POST_PR_COMMENT", "").lower() == "true" and os.getenv("GITHUB_TOKEN"):
             reporter.post_comment()
         else:
-            print("GITHUB_TOKEN not set - PR comment skipped.")
+            print("PR comment skipped (set POST_PR_COMMENT=true and GITHUB_TOKEN to post).")
             print("Report saved locally to storage/pr_report.md")
 
         print_phase9_results(decision_result, "storage/pr_report.md")
         run_success = True
 
     finally:
-        if os.path.exists("datasets/virtual_repo"):
-            shutil.rmtree("datasets/virtual_repo")
-            print("\nCleaned up datasets/virtual_repo")
+        # Only delete the copy we downloaded - never a local checkout
+        if downloaded_repo_path and os.path.exists(downloaded_repo_path):
+            shutil.rmtree(downloaded_repo_path)
+            print(f"\nCleaned up {downloaded_repo_path}")
 
         print("\n" + "=" * 55)
         if run_success:
