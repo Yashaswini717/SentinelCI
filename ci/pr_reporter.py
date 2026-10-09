@@ -206,6 +206,29 @@ class PRReporter:
                 lines.append(f"- {d}")
             lines.append("")
 
+        # Where every point of the score comes from
+        breakdown = ci_decision.get("score_breakdown", {})
+        if breakdown:
+            labels = {
+                "change_size": "Change size",
+                "blast_radius": "Blast radius",
+                "coupling": "Coupling",
+                "api_break": "API changes",
+                "test_coverage": "Test coverage",
+                "semantic_impact": "Semantic impact",
+            }
+            lines.append("<details><summary>Score breakdown</summary>")
+            lines.append("")
+            lines.append("| Factor | Points |")
+            lines.append("|--------|--------|")
+            for name, item in breakdown.items():
+                lines.append(
+                    f"| {labels.get(name, name)} | {item.get('points')} / {item.get('max')} |"
+                )
+            lines.append("")
+            lines.append("</details>")
+            lines.append("")
+
         # Tests to run
         if tests_to_run:
             lines.append("### 🧪 Selected Tests")

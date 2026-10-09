@@ -123,33 +123,36 @@ class ChangeImpactAgent:
     def _classify_change_type(self, changed_module: str) -> str:
         """
         Classify the type of change based on what was modified.
-        signature_change = function/class added or removed (higher risk)
+        signature_change = public function/class signature changed,
+                           renamed or removed (callers may break)
+        additive_change = only new public functions/classes added
         body_change = only internal logic changed (lower risk)
         """
         changed_functions = self.pr_analysis.get("changed_functions", [])
         changed_classes = self.pr_analysis.get("changed_classes", [])
         modified_symbols = self.pr_analysis.get("modified_symbols", [])
 
-        # Check if any public symbols changed (not starting with _)
+        if self._is_public_api_change(changed_module):
+            return "signature_change"
+
+        # Check if any public symbols were added (not starting with _)
         public_functions = [f for f in changed_functions if not f.startswith("_")]
         public_classes = [c for c in changed_classes if not c.startswith("_")]
 
         if public_functions or public_classes:
-            return "signature_change"
+            return "additive_change"
         elif modified_symbols:
             return "body_change"
         else:
             return "unknown"
 
     def _is_public_api_change(self, changed_module: str) -> bool:
-        """Check if the change affects public API (non-private symbols)."""
-        changed_functions = self.pr_analysis.get("changed_functions", [])
-        changed_classes = self.pr_analysis.get("changed_classes", [])
-
-        public_functions = [f for f in changed_functions if not f.startswith("_")]
-        public_classes = [c for c in changed_classes if not c.startswith("_")]
-
-        return bool(public_functions or public_classes)
+        """
+        Check if an existing public symbol's definition changed or was removed.
+        Adding new public symbols doesn't break existing callers.
+        """
+        modified_definitions = self.pr_analysis.get("modified_definitions", [])
+        return any(not name.startswith("_") for name in modified_definitions)
 
     # ── Confidence Scoring ───────────────────────────────────────
 
@@ -305,6 +308,10 @@ class ChangeImpactAgent:
             depth_map = self._bfs_with_depth(changed_module)
 
             for affected_module, depth in depth_map.items():
+                # A module changed in this PR is already counted as changed -
+                # blast radius is the impact beyond the change itself
+                if affected_module in changed_modules:
+                    continue
                 if affected_module not in all_affected:
                     all_affected[affected_module] = {
                         "min_depth": depth,
@@ -387,6 +394,10 @@ class ChangeImpactAgent:
                 "indirect_impact": indirect_count,
                 "blast_radius": blast_radius,
                 "public_api_changed": public_api_changed,
+                "changed_public_api": sorted(
+                    name for name in self.pr_analysis.get("modified_definitions", [])
+                    if not name.startswith("_")
+                ),
                 "change_type": primary_change_type
             },
             "affected_modules": affected_modules_detail,

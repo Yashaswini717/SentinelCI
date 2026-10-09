@@ -200,7 +200,11 @@ class CIDecision:
             "test_runs": test_runs,
             "test_commands": [r["command"] for r in test_runs],
             "top_drivers": drivers[:3],
-            "total_risk_drivers": len(drivers)
+            "total_risk_drivers": len(drivers),
+            "score_breakdown": {
+                name: {"points": points, "max": risk_report.get("max_points", {}).get(name)}
+                for name, points in risk_report.get("components", {}).items()
+            }
         }
 
     def save(self, output_path: str = "storage/ci_decision.json") -> dict:

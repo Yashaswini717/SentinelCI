@@ -285,11 +285,12 @@ def print_phase8_results(result: dict):
             print(f"    !  {d}")
 
     components = result.get("components", {})
+    max_points = result.get("max_points", {})
     if components:
-        print("\n  Score Breakdown:")
+        print("\n  Score Breakdown (points / max):")
         for component, score in components.items():
             bar = "#" * int(score)
-            print(f"    {component:<25} {score:>5}  {bar}")
+            print(f"    {component:<18} {score:>5} / {max_points.get(component, '?'):<3} {bar}")
 
     rec = result.get("recommendation", {})
     print(f"\n  Recommendation : {rec.get('action', 'unknown').upper()}")
@@ -479,7 +480,7 @@ if __name__ == "__main__":
         print("  PHASE 8: Risk Scoring System")
         print("=" * 55 + "\n")
 
-        risk_agent = RiskScoringAgent()
+        risk_agent = RiskScoringAgent(repo_path=repo_path)
         risk_result = risk_agent.save()
         print_phase8_results(risk_result)
 

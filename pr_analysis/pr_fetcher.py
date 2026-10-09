@@ -38,7 +38,9 @@ class PRFetcher:
         metrics = {
             "files_changed": 0,
             "lines_added": 0,
-            "lines_deleted": 0
+            "lines_deleted": 0,
+            # Per-file line counts and status (added/modified/removed/renamed)
+            "file_stats": {}
         }
 
         for file in data:
@@ -49,6 +51,11 @@ class PRFetcher:
             patches[filename] = patch
             metrics["lines_added"] += file.get("additions", 0)
             metrics["lines_deleted"] += file.get("deletions", 0)
+            metrics["file_stats"][filename] = {
+                "added": file.get("additions", 0),
+                "deleted": file.get("deletions", 0),
+                "status": file.get("status", "modified")
+            }
 
         metrics["files_changed"] = len(changed_files)
 

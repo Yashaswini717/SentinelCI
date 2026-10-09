@@ -17,6 +17,11 @@ class DiffParser:
         changed_functions = set()
         changed_classes = set()
         modified_symbols = set()
+        # Definitions whose old "def"/"class" line was removed: the signature
+        # changed, or the symbol was renamed or deleted. Purely new
+        # definitions can't break existing callers, so they aren't included.
+        removed_definitions = {}
+        added_definition_lines = set()
         lines_added = 0
         lines_deleted = 0
         current_symbol = None
@@ -47,6 +52,9 @@ class DiffParser:
                 function_name = function_match.group(1)
                 changed_functions.add(function_name)
                 modified_symbols.add(function_name)
+                self._track_definition(
+                    line, function_name, removed_definitions, added_definition_lines
+                )
                 current_symbol = function_name
                 continue
 
@@ -54,19 +62,37 @@ class DiffParser:
                 class_name = class_match.group(1)
                 changed_classes.add(class_name)
                 modified_symbols.add(class_name)
+                self._track_definition(
+                    line, class_name, removed_definitions, added_definition_lines
+                )
                 current_symbol = class_name
                 continue
 
             if current_symbol and content.strip() and not content.lstrip().startswith("#"):
                 modified_symbols.add(current_symbol)
 
+        # A definition removed and re-added unchanged (e.g. moved within the
+        # file) isn't a signature change
+        modified_definitions = {
+            name for name, removed_lines in removed_definitions.items()
+            if removed_lines - added_definition_lines
+        }
+
         return {
             "changed_functions": sorted(changed_functions),
             "changed_classes": sorted(changed_classes),
             "modified_symbols": sorted(modified_symbols),
+            "modified_definitions": sorted(modified_definitions),
             "lines_added": lines_added,
             "lines_deleted": lines_deleted
         }
+
+    def _track_definition(self, line, name, removed_definitions, added_definition_lines):
+        signature = line[1:].strip()
+        if line.startswith("-"):
+            removed_definitions.setdefault(name, set()).add(signature)
+        else:
+            added_definition_lines.add(signature)
 
     def _extract_symbol_from_context(self, context: str):
 

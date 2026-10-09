@@ -43,9 +43,13 @@ class PRAnalyzer:
 
         parser = DiffParser()
 
+        repo_structure = self.load_repo_structure()
+        test_paths = set(repo_structure.get("test_file_map", {}).values())
+
         changed_functions = set()
         changed_classes = set()
         modified_symbols = set()
+        modified_definitions = set()
         diff_metrics = {
             "lines_added": 0,
             "lines_deleted": 0
@@ -58,15 +62,19 @@ class PRAnalyzer:
             if not file.endswith(".py"):
                 continue
 
+            # Test code isn't product API - edited test files are tracked
+            # separately as changed_tests
+            if file in test_paths:
+                continue
+
             analysis = parser.analyze_patch(patch)
 
             changed_functions.update(analysis["changed_functions"])
             changed_classes.update(analysis["changed_classes"])
             modified_symbols.update(analysis["modified_symbols"])
+            modified_definitions.update(analysis["modified_definitions"])
             diff_metrics["lines_added"] += analysis["lines_added"]
             diff_metrics["lines_deleted"] += analysis["lines_deleted"]
-
-        repo_structure = self.load_repo_structure()
 
         changed_modules = self.map_files_to_modules(
             changed_files,
@@ -74,7 +82,6 @@ class PRAnalyzer:
         )
 
         # Test files edited in this PR should always be run
-        test_paths = set(repo_structure.get("test_file_map", {}).values())
         changed_tests = sorted(f for f in changed_files if f in test_paths)
 
         result = {
@@ -84,13 +91,15 @@ class PRAnalyzer:
             "changed_functions": sorted(changed_functions),
             "changed_classes": sorted(changed_classes),
             "modified_symbols": sorted(modified_symbols),
+            "modified_definitions": sorted(modified_definitions),
             "change_metrics": {
                 "files_changed": pr_metrics["files_changed"],
                 "lines_added": pr_metrics["lines_added"],
                 "lines_deleted": pr_metrics["lines_deleted"],
                 "patch_lines_added": diff_metrics["lines_added"],
                 "patch_lines_deleted": diff_metrics["lines_deleted"]
-            }
+            },
+            "file_stats": pr_metrics["file_stats"]
         }
 
         return result
