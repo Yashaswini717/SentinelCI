@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Optional
 
 
 class CIDecision:
@@ -21,7 +22,7 @@ class CIDecision:
         self.test_selection_path = Path(test_selection_path)
         self.test_generation_path = Path(test_generation_path)
 
-    def _load_json(self, path: Path, default: dict = None) -> dict:
+    def _load_json(self, path: Path, default: Optional[dict] = None) -> dict:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -34,6 +35,12 @@ class CIDecision:
         """Generate pytest commands based on selected tests and risk level."""
         commands = []
 
+        def quote(path: str) -> str:
+            if any(ch in path for ch in [" ", "\t", "\n", "\""]):
+                escaped = path.replace("\"", '\\\"')
+                return f'"{escaped}"'
+            return path
+
         if not tests_to_run:
             if risk_level in ("high", "critical"):
                 commands.append("pytest tests/ -v")
@@ -41,7 +48,7 @@ class CIDecision:
                 commands.append("pytest tests/ -v --tb=short")
             return commands
 
-        test_args = " ".join(tests_to_run)
+        test_args = " ".join(quote(test) for test in tests_to_run)
         commands.append(f"pytest {test_args} -v")
 
         if risk_level == "medium":
@@ -86,7 +93,7 @@ class CIDecision:
                 "risk_score": 100,
                 "risk_level": "critical",
                 "message": (
-                    "Risk report missing — core pipeline may have failed. "
+                    "Risk report missing - core pipeline may have failed. "
                     "Failing safe to protect codebase."
                 ),
                 "tests_to_run": [],

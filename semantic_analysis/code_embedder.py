@@ -20,7 +20,7 @@ class CodeEmbedder:
                 "Run: $env:OPENROUTER_API_KEY='your-key-here'"
             )
 
-        print(f"CodeEmbedder ready — model: {self.model}\n")
+        print(f"CodeEmbedder ready - model: {self.model}\n")
 
     def _call_api(self, texts: list[str]) -> list[list[float]]:
         """Make a single API call to OpenRouter embeddings endpoint."""

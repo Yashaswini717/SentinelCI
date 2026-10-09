@@ -8,6 +8,7 @@ import requests
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OUTPUT_DIR = Path("generated_tests")
+TEST_GEN_MODEL = os.getenv("TEST_GEN_MODEL", "mistralai/mistral-7b-instruct")
 
 
 def load_json(path: str, default=None):
@@ -181,7 +182,7 @@ def generate_test_with_llm(module: str, code: str) -> str:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "mistralai/mistral-7b-instruct",
+                "model": TEST_GEN_MODEL,
                 "messages": [{"role": "user", "content": prompt}]
             },
             timeout=60
@@ -203,7 +204,7 @@ def save_test_file(module: str, test_code: str) -> str:
     file_name = module.replace(".", "_").replace("-", "_")
     file_path = OUTPUT_DIR / f"test_{file_name}.py"
     file_path.write_text(test_code, encoding="utf-8")
-    return str(file_path)
+    return file_path.as_posix()
 
 
 def run_test_generation(output_path: str = "storage/test_generation.json"):

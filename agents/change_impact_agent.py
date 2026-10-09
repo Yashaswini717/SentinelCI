@@ -99,7 +99,7 @@ class ChangeImpactAgent:
         """
         Find shortest path from changed module to affected module.
         Shows WHY a module is impacted.
-        e.g. compat → structures → cookies → sessions
+        e.g. compat -> structures -> cookies -> sessions
         """
         queue = deque([[start]])
         visited = {start}
@@ -299,7 +299,7 @@ class ChangeImpactAgent:
             }
 
         # Collect impact across all changed modules
-        all_affected = {}  # module → {depth, paths, changed_by}
+        all_affected = {}  # module -> {depth, paths, changed_by}
 
         for changed_module in changed_modules:
             depth_map = self._bfs_with_depth(changed_module)

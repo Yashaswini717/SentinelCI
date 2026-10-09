@@ -2,6 +2,7 @@ import json
 import os
 import requests
 from pathlib import Path
+from typing import Optional
 
 # Hidden marker used to find (and update) SentinelCI's own comment on a PR
 COMMENT_MARKER = "<!-- sentinelci-report -->"
@@ -24,7 +25,7 @@ class PRReporter:
         repo_owner: str,
         repo_name: str,
         pr_number: int,
-        github_token: str = None
+        github_token: Optional[str] = None
     ):
         self.repo_owner = repo_owner
         self.repo_name = repo_name
@@ -69,6 +70,9 @@ class PRReporter:
         coverage_gaps = ci_decision.get("coverage_gaps", [])
         top_drivers = ci_decision.get("top_drivers", [])
         test_commands = ci_decision.get("test_commands", [])
+
+        def posix_path(path: str) -> str:
+            return path.replace("\\", "/") if isinstance(path, str) else path
 
         affected_modules = impact.get("affected_modules", [])
         changed_modules = pr_analysis.get("changed_modules", [])
@@ -140,14 +144,14 @@ class PRReporter:
         if tests_to_run:
             lines.append("### 🧪 Selected Tests")
             for t in tests_to_run:
-                lines.append(f"- `{t}`")
+                lines.append(f"- `{posix_path(t)}`")
             lines.append("")
 
         # Generated tests
         if generated_tests:
             lines.append("### 🤖 Generated Tests")
             for t in generated_tests:
-                lines.append(f"- `{t}` _(auto-generated for coverage gap)_")
+                lines.append(f"- `{posix_path(t)}` _(auto-generated for coverage gap)_")
             lines.append("")
 
         # Coverage gaps
@@ -213,7 +217,7 @@ class PRReporter:
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
-    def _find_existing_comment(self) -> int | None:
+    def _find_existing_comment(self) -> Optional[int]:
         """Return the id of a previous SentinelCI bot comment on this PR, if any."""
         url = (
             f"https://api.github.com/repos/{self.repo_owner}/"
