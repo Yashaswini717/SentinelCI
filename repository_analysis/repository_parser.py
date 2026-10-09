@@ -6,15 +6,32 @@ from pathlib import Path
 
 
 class RepositoryParser:
-    def __init__(self, repo_path: str):
+    def __init__(self, repo_path: str, exclude_paths: list | None = None):
         self.repo_path = Path(repo_path).resolve()
+        # Absolute directories to ignore, e.g. SentinelCI's own output folders
+        # when analyzing a local checkout in place. Only folders inside the
+        # repo count - the repo itself may live in one (datasets/virtual_repo).
+        self.exclude_paths = {
+            p for p in (Path(p).resolve() for p in (exclude_paths or []))
+            if self.repo_path in p.parents
+        }
 
-    def _is_test_file(self, path: Path) -> bool:
+    def _is_test_file(self, path: Path, symbols: dict | None = None) -> bool:
+        if any(part in {"test", "tests"} for part in path.parts):
+            return True
+
         filename = path.name
+        if not (filename.startswith("test_") or filename.endswith("_test.py")):
+            return False
+
+        # Outside a test folder, a test_*.py name alone isn't enough -
+        # e.g. agents/test_selection_agent.py is a regular module.
+        # Require pytest-style test functions or Test* classes.
+        if symbols is None:
+            return True
         return (
-            filename.startswith("test_")
-            or filename.endswith("_test.py")
-            or any(part in {"test", "tests"} for part in path.parts)
+            any(name.startswith("test") for name in symbols.get("functions", []))
+            or any(name.startswith("Test") for name in symbols.get("classes", []))
         )
 
     def _should_skip(self, path: Path) -> bool:
@@ -23,7 +40,18 @@ class RepositoryParser:
             ".tox", "node_modules", "dist", "build", ".eggs",
             "docs"
         }
-        return any(part in skip_dirs for part in path.parts)
+        # Only look at parts inside the repo, so a repo cloned under e.g.
+        # /home/build/ isn't skipped entirely
+        try:
+            parts = path.relative_to(self.repo_path).parts
+        except ValueError:
+            parts = path.parts
+        if any(part in skip_dirs for part in parts):
+            return True
+        return any(
+            path == excluded or excluded in path.parents
+            for excluded in self.exclude_paths
+        )
 
     def _is_init_file(self, filename: str) -> bool:
         return filename == "__init__.py"
@@ -226,7 +254,7 @@ class RepositoryParser:
                     "methods": symbols["methods"]
                 }
 
-                if self._is_test_file(Path(relative_path)):
+                if self._is_test_file(Path(relative_path), symbols):
                     entry["imports"] = imports
                     tests.append(entry)
                     test_file_map[module_key] = relative_path
@@ -253,7 +281,7 @@ class RepositoryParser:
         output = Path(output_path)
         output.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output, "w") as f:
+        with open(output, "w", encoding="utf-8") as f:
             json.dump({
                 "modules": result["modules"],
                 "tests": result["tests"],

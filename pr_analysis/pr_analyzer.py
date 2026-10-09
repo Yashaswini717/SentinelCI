@@ -21,7 +21,7 @@ class PRAnalyzer:
 
     def load_repo_structure(self):
 
-        with open(self.repo_structure_path, "r") as f:
+        with open(self.repo_structure_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
     def map_files_to_modules(self, changed_files, file_map):
@@ -53,6 +53,11 @@ class PRAnalyzer:
 
         for file, patch in patches.items():
 
+            # Only Python diffs describe functions/classes; a "def" inside
+            # a YAML or Markdown diff is not a changed Python symbol
+            if not file.endswith(".py"):
+                continue
+
             analysis = parser.analyze_patch(patch)
 
             changed_functions.update(analysis["changed_functions"])
@@ -68,9 +73,14 @@ class PRAnalyzer:
             repo_structure["file_map"]
         )
 
+        # Test files edited in this PR should always be run
+        test_paths = set(repo_structure.get("test_file_map", {}).values())
+        changed_tests = sorted(f for f in changed_files if f in test_paths)
+
         result = {
             "changed_files": changed_files,
-            "changed_modules": list(set(changed_modules)),
+            "changed_modules": sorted(set(changed_modules)),
+            "changed_tests": changed_tests,
             "changed_functions": sorted(changed_functions),
             "changed_classes": sorted(changed_classes),
             "modified_symbols": sorted(modified_symbols),

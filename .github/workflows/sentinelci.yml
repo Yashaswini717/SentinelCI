@@ -4,10 +4,16 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# A newer push to the same PR cancels the older, now-outdated run
+concurrency:
+  group: sentinelci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   sentinelci:
     runs-on: ubuntu-latest
     name: AI-Powered CI Analysis
+    timeout-minutes: 30
 
     # GITHUB_TOKEN is read-only by default; posting the PR comment needs write access.
     permissions:
@@ -17,14 +23,19 @@ jobs:
 
     steps:
       # ── Step 1: Checkout ─────────────────────────────────────
+      # Checks out the PR's code. Credentials aren't kept in .git/config,
+      # so code run by later steps (including generated tests) can't read the token.
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # ── Step 2: Setup Python ──────────────────────────────────
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
 
       # ── Step 3: Install dependencies ─────────────────────────
       - name: Install dependencies
@@ -40,6 +51,8 @@ jobs:
           PR_OWNER: ${{ github.repository_owner }}
           PR_REPO: ${{ github.event.repository.name }}
           PR_NUMBER: ${{ github.event.number }}
+          # Analyze the checked-out PR code directly instead of downloading it
+          REPO_PATH: ${{ github.workspace }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SEMANTIC_SIMILARITY_THRESHOLD: "0.50"
@@ -66,85 +79,59 @@ jobs:
           "
 
       # ── Step 6: Risk-based test execution ────────────────────
+      # Runs the test runs chosen in storage/ci_decision.json and saves
+      # results to storage/test_execution.json for the PR comment.
+      # Fails if a blocking run fails; generated tests never block.
       - name: Execute selected tests
         run: |
-          python -c "
-          import json, subprocess, sys
+          python -m ci.run_tests
 
-          with open('storage/ci_decision.json') as f:
-              decision = json.load(f)
-
-          risk_level = decision.get('risk_level', 'high')
-          tests_to_run = decision.get('tests_to_run', [])
-          test_commands = decision.get('test_commands', [])
-
-          print(f'Risk level: {risk_level}')
-          print(f'Tests to run: {len(tests_to_run)}')
-
-          if not test_commands:
-              print('No test commands found — skipping test execution.')
-              sys.exit(0)
-
-          results = []
-          should_fail = False
-          for cmd in test_commands:
-              print(f'Running: {cmd}')
-              result = subprocess.run(cmd, shell=True)
-              passed = result.returncode == 0
-              results.append({'command': cmd, 'passed': passed, 'returncode': result.returncode})
-              if not passed:
-                  print(f'Tests failed: {cmd}')
-                  if risk_level in ('high', 'critical'):
-                      should_fail = True
-                      break
-
-          # Saved for the PR comment step
-          with open('storage/test_execution.json', 'w') as f:
-              json.dump({'risk_level': risk_level, 'results': results}, f, indent=2)
-
-          if should_fail:
-              sys.exit(1)
-          "
-        continue-on-error: false
-
-      # ── Step 7: Upload all artifacts ─────────────────────────
-      - name: Upload SentinelCI artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: sentinelci-reports-pr-${{ github.event.number }}
-          path: |
-            storage/risk_report.json
-            storage/impact_analysis.json
-            storage/test_selection.json
-            storage/test_generation.json
-            storage/ci_decision.json
-            storage/pr_report.md
-            storage/test_execution.json
-            storage/dependency_graph.json
-            storage/dependency_metrics.json
-            storage/pr_analysis.json
-            generated_tests/
-          retention-days: 30
-
-      # ── Step 8: Post PR comment with full report ──────────────
+      # ── Step 7: Post PR comment with full report ──────────────
+      # Runs even when earlier steps fail, so the PR always shows a status.
+      # A comment failure shows as a warning but doesn't fail the job.
       - name: Post PR analysis comment
-        if: always()
+        if: ${{ !cancelled() }}
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_OWNER: ${{ github.repository_owner }}
+          PR_REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.number }}
         run: |
           python -c "
           import os
           from ci.pr_reporter import PRReporter
 
           reporter = PRReporter(
-              repo_owner='${{ github.repository_owner }}',
-              repo_name='${{ github.event.repository.name }}',
-              pr_number=${{ github.event.number }},
-              github_token=os.getenv('GITHUB_TOKEN')
+              repo_owner=os.environ['PR_OWNER'],
+              repo_name=os.environ['PR_REPO'],
+              pr_number=int(os.environ['PR_NUMBER']),
+              github_token=os.environ.get('GITHUB_TOKEN')
           )
+          reporter.save_report()
           reporter.post_comment()
           "
+
+      # ── Step 8: Upload all artifacts ─────────────────────────
+      - name: Upload SentinelCI artifacts
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: sentinelci-reports-pr-${{ github.event.number }}
+          path: |
+            storage/risk_report.json
+            storage/impact_analysis.json
+            storage/semantic_impact.json
+            storage/test_selection.json
+            storage/test_generation.json
+            storage/test_execution.json
+            storage/ci_decision.json
+            storage/pr_report.md
+            storage/dependency_graph.json
+            storage/dependency_metrics.json
+            storage/pr_analysis.json
+            generated_tests/
+          retention-days: 30
 
       # ── Step 9: Risk-based gate (final pass/fail) ─────────────
       - name: Enforce risk gate
