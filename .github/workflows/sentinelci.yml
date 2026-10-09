@@ -9,6 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     name: AI-Powered CI Analysis
 
+    # GITHUB_TOKEN is read-only by default; posting the PR comment needs write access.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
     steps:
       # ── Step 1: Checkout ─────────────────────────────────────
       - name: Checkout repository
@@ -79,13 +85,25 @@ jobs:
               print('No test commands found — skipping test execution.')
               sys.exit(0)
 
+          results = []
+          should_fail = False
           for cmd in test_commands:
               print(f'Running: {cmd}')
               result = subprocess.run(cmd, shell=True)
-              if result.returncode != 0:
+              passed = result.returncode == 0
+              results.append({'command': cmd, 'passed': passed, 'returncode': result.returncode})
+              if not passed:
                   print(f'Tests failed: {cmd}')
                   if risk_level in ('high', 'critical'):
-                      sys.exit(1)
+                      should_fail = True
+                      break
+
+          # Saved for the PR comment step
+          with open('storage/test_execution.json', 'w') as f:
+              json.dump({'risk_level': risk_level, 'results': results}, f, indent=2)
+
+          if should_fail:
+              sys.exit(1)
           "
         continue-on-error: false
 
@@ -102,6 +120,7 @@ jobs:
             storage/test_generation.json
             storage/ci_decision.json
             storage/pr_report.md
+            storage/test_execution.json
             storage/dependency_graph.json
             storage/dependency_metrics.json
             storage/pr_analysis.json

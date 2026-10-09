@@ -22,10 +22,10 @@ except Exception:
 
 def get_runtime_config() -> dict:
     github_url = os.getenv("GITHUB_URL", "https://github.com/psf/requests")
-    pr_owner = os.getenv("PR_OWNER", "psf")
-    pr_repo = os.getenv("PR_REPO", "requests")
+    pr_owner   = os.getenv("PR_OWNER",   "psf")
+    pr_repo    = os.getenv("PR_REPO",    "requests")
+    pr_number_raw  = os.getenv("PR_NUMBER",  "6710")
 
-    pr_number_raw = os.getenv("PR_NUMBER", "6710")
     try:
         pr_number = int(pr_number_raw)
     except ValueError as e:
@@ -463,8 +463,12 @@ if __name__ == "__main__":
         )
         reporter.save_report()
 
-        # Step 3 — Post comment to GitHub PR (only if token available)
-        if os.getenv("GITHUB_TOKEN"):
+        # Step 3 — Post comment to GitHub PR (only if token available).
+        # In GitHub Actions the workflow posts the comment in a later step,
+        # after tests have run, so skip it here to avoid duplicates.
+        if os.getenv("GITHUB_ACTIONS") == "true":
+            print("Running in GitHub Actions — PR comment will be posted by the workflow.")
+        elif os.getenv("GITHUB_TOKEN"):
             reporter.post_comment()
         else:
             print("GITHUB_TOKEN not set — PR comment skipped.")
